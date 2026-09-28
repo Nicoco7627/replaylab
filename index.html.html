@@ -1,0 +1,2543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Replaylab — L'analyse IA de tes replays Rocket League</title>
+<meta name="theme-color" content="#04071A">
+<meta name="description" content="Importe un replay Rocket League. Une IA analyse tes décisions, repère tes erreurs récurrentes et calcule ton Training MMR.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Big Shoulders Display"', 'Impact', 'Arial Narrow', 'sans-serif'],
+          body: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif']
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    color-scheme: dark;
+    --bg: #04071A;
+    --bar: rgba(4,7,26,.82);
+    --surface: #0A1236;
+    --ink: #E9F2FF;
+    --muted: #93A6DA;
+    --line: #1A2A70;
+    --blue: #1FB6FF;
+    --blue-soft: #0B2A63;
+    --orange: #FF7A2F;
+    --orange-soft: #3A1B10;
+    --on-blue: #03101F;
+    --pitch: #071040;
+    --pitchline: #2247C9;
+    --fx-blue: drop-shadow(0 0 6px rgba(31,182,255,.85));
+    --fx-orange: drop-shadow(0 0 6px rgba(255,122,47,.85));
+    --glow-box: 0 0 0 1px rgba(31,182,255,.4), 0 0 24px rgba(31,182,255,.4);
+    --glow-text: 0 0 10px rgba(31,182,255,.9), 0 0 34px rgba(31,182,255,.55);
+    --glow-h2: 0 0 18px rgba(31,182,255,.4);
+    --glow-soft: 0 0 28px rgba(31,182,255,.18);
+    --edge: rgba(31,182,255,.35);
+    --bg-fx: radial-gradient(900px 520px at 88% -4%, rgba(31,182,255,.24), transparent 62%), radial-gradient(720px 520px at -6% 28%, rgba(61,90,254,.22), transparent 62%);
+    --grid-fx: linear-gradient(rgba(31,182,255,.11) 1px, transparent 1px), linear-gradient(90deg, rgba(31,182,255,.11) 1px, transparent 1px);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #EEF2F8;
+    --bar: #EEF2F8;
+    --surface: #FFFFFF;
+    --ink: #101633;
+    --muted: #4F5B7D;
+    --line: #CDD5E6;
+    --blue: #2340E8;
+    --blue-soft: #DDE4FF;
+    --orange: #E85D0C;
+    --orange-soft: #FFE3D3;
+    --on-blue: #FFFFFF;
+    --pitch: #E1E8F5;
+    --pitchline: #B3BFDC;
+    --fx-blue: none;
+    --fx-orange: none;
+    --glow-box: 0 0 0 0 transparent;
+    --glow-text: none;
+    --glow-h2: none;
+    --glow-soft: none;
+    --edge: #CDD5E6;
+    --bg-fx: none;
+    --grid-fx: none;
+  }
+  html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4.5rem); scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  .page { background: var(--bg); color: var(--ink); font-family: Figtree, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 1.0625rem; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { width: min(1160px, 100% - 2.5rem); margin-inline: auto; }
+  .sec { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
+  .band { background: var(--surface); border-block: 1px solid var(--line); }
+
+  .h1 { font-family: 'Big Shoulders Display', Impact, 'Arial Narrow', sans-serif; font-weight: 900; font-size: clamp(3rem, 8.5vw, 6rem); line-height: .92; letter-spacing: -0.01em; margin: 0; }
+  .h2 { font-family: 'Big Shoulders Display', Impact, 'Arial Narrow', sans-serif; font-weight: 800; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1; letter-spacing: -0.005em; margin: 0; }
+  .h3 { font-family: 'Big Shoulders Display', Impact, 'Arial Narrow', sans-serif; font-weight: 800; font-size: 1.55rem; line-height: 1.1; margin: 0; }
+  .lead { font-size: 1.2rem; color: var(--muted); max-width: 52ch; margin: 1.5rem 0 0; }
+  .prose { max-width: 62ch; margin: 0; color: var(--ink); }
+  .prose + .prose { margin-top: 1rem; }
+  .muted { color: var(--muted); }
+  .small { font-size: .9rem; }
+
+  .logo { font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 900; font-size: 1.6rem; letter-spacing: .01em; display: inline-flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--ink); }
+  .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; background: var(--bg); border-bottom: 1px solid var(--line); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; padding: .85rem 1.4rem; border-radius: 999px; text-decoration: none; border: 2px solid transparent; cursor: pointer; font-family: inherit; font-size: 1rem; line-height: 1.2; }
+  .btn-primary { background: var(--blue); color: var(--on-blue); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { border-color: var(--ink); color: var(--ink); background: transparent; }
+  .btn-ghost:hover { background: var(--ink); color: var(--bg); }
+  a:focus-visible, button:focus-visible, summary:focus-visible, [role="tab"]:focus-visible, .drop:focus-within { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+  /* Hero scene */
+  .scene { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 1rem; }
+  .scene-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .25rem .5rem .75rem; flex-wrap: wrap; }
+  .chip { font-weight: 700; font-size: .85rem; background: var(--orange-soft); color: var(--ink); padding: .2rem .7rem; border-radius: 999px; border: 1px solid var(--orange); }
+  .pitch { fill: var(--pitch); stroke: rgba(120,190,255,.22); stroke-width: 2; }
+  .field3d .pitch-grid { opacity:.34; }
+  .field3d .pline { stroke:rgba(180,220,255,.42); }
+  .field3d .goal-b { filter:drop-shadow(0 0 9px rgba(40,130,255,.7)); }
+  .field3d .goal-o { filter:drop-shadow(0 0 9px rgba(255,105,20,.7)); }
+  .field3d .ball { filter:drop-shadow(0 0 7px rgba(255,255,255,.55)); }
+  .field3d .car-b { filter:drop-shadow(0 0 6px rgba(30,125,255,.7)); }
+  .field3d .car-o { filter:drop-shadow(0 0 6px rgba(255,105,20,.7)); }
+  .pline { stroke: var(--pitchline); stroke-width: 2; }
+  .nofill { fill: none; }
+  .goal-b { fill: var(--blue); }
+  .goal-o { fill: var(--orange); }
+  .pad { fill: var(--pitchline); }
+  .pad-ring { fill: none; stroke: var(--blue); stroke-width: 2.5; }
+  .threat { fill: var(--orange); fill-opacity: .22; }
+  .car-b { fill: var(--blue); }
+  .car-o { fill: var(--orange); }
+  .car-nose { fill: #fff; fill-opacity: .6; }
+  .car-ghost { fill: var(--blue-soft); fill-opacity: .6; stroke: var(--blue); stroke-width: 2.5; stroke-dasharray: 5 4; }
+  .ball { fill: var(--surface); stroke: var(--ink); stroke-width: 3; }
+  .ball-seam { stroke: var(--ink); stroke-width: 2; fill: none; }
+  .path-dots-b { stroke: var(--blue); stroke-width: 3; stroke-dasharray: 2 8; stroke-linecap: round; fill: none; }
+  .path-dots-o { stroke: var(--orange); stroke-width: 3; stroke-dasharray: 2 8; stroke-linecap: round; fill: none; }
+  .path-rec { stroke: var(--blue); stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-dasharray: 1; }
+  .a-threat { animation: fade .7s .2s both; }
+  .a-path { animation: draw 1.4s .7s both ease-out; }
+  .a-ghost { animation: fade .6s 1.9s both; }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .a-threat, .a-path, .a-ghost { animation: none; } }
+
+  .legend { list-style: none; margin: .9rem 0 0; padding: 0 .5rem; display: grid; gap: .45rem; font-size: .95rem; }
+  .legend li { display: flex; align-items: center; gap: .6rem; }
+  .sw { width: 1.1rem; height: .8rem; border-radius: 3px; flex: none; }
+  .sw-you { background: var(--blue); }
+  .sw-rec { border: 2px dashed var(--blue); background: var(--blue-soft); }
+  .sw-threat { background: var(--orange); opacity: .35; }
+  .scene-note { margin: .9rem .5rem .25rem; padding-top: .9rem; border-top: 1px solid var(--line); font-size: .98rem; }
+
+  /* Project + import */
+  .drop { display: flex; flex-direction: column; align-items: flex-start; gap: .4rem; border: 2px dashed var(--pitchline); border-radius: 18px; padding: 1.5rem; background: var(--bg); cursor: pointer; }
+  .drop:hover { border-color: var(--blue); }
+  .drop strong { font-size: 1.1rem; }
+  .status { min-height: 1.5rem; margin-top: .75rem; font-weight: 600; color: var(--blue); }
+
+  /* Analysis dimensions */
+  .dims { display: grid; gap: 0 3rem; grid-template-columns: 1fr; margin: 2.5rem 0 0; padding: 0; list-style: none; }
+  @media (min-width: 760px) { .dims { grid-template-columns: 1fr 1fr; } }
+  .dims li { border-top: 2px solid var(--ink); padding: 1rem 0 1.5rem; }
+  .dims h3 { font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 800; font-size: 1.5rem; margin: 0 0 .25rem; line-height: 1.1; }
+  .dims p { margin: 0; color: var(--muted); max-width: 46ch; }
+
+  /* MMR */
+  .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .chart { min-width: 560px; display: block; width: 100%; height: auto; }
+  .g-line { stroke: var(--line); stroke-width: 1; }
+  .g-text { fill: var(--muted); font-size: 12px; font-family: Figtree, system-ui, sans-serif; }
+  .mmr-line { fill: none; stroke: var(--blue); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  .dot-win { fill: var(--blue); stroke: var(--blue); stroke-width: 2.5; }
+  .dot-loss { fill: var(--surface); stroke: var(--orange); stroke-width: 3; }
+  .key { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: .92rem; color: var(--muted); margin-top: .75rem; }
+  .key span { display: inline-flex; align-items: center; gap: .45rem; }
+  .k-dot { width: .9rem; height: .9rem; border-radius: 50%; display: inline-block; }
+  .k-win { background: var(--blue); }
+  .k-loss { border: 3px solid var(--orange); background: var(--surface); }
+  .tbl { width: 100%; border-collapse: collapse; min-width: 520px; font-size: .98rem; }
+  .tbl th { text-align: left; font-weight: 600; color: var(--muted); padding: .5rem .75rem; border-bottom: 2px solid var(--ink); font-size: .9rem; }
+  .tbl td { padding: .55rem .75rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .tbl tr.hl td { background: var(--blue-soft); }
+  .bar { height: .6rem; border-radius: 99px; background: var(--line); min-width: 90px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--blue); }
+  .pos { color: var(--blue); font-weight: 700; }
+  .neg { color: var(--orange); font-weight: 700; }
+  .callout { border-left: 4px solid var(--orange); padding: .2rem 0 .2rem 1rem; margin: 1.5rem 0 0; max-width: 60ch; }
+
+  /* Levels */
+  .tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 2rem; }
+  [role="tab"] { font: inherit; font-weight: 700; padding: .6rem 1.1rem; border-radius: 999px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  [role="tab"]:hover { border-color: var(--ink); }
+  [role="tab"][aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .depth { display: flex; gap: 5px; margin: .75rem 0 .6rem; }
+  .depth i { height: 30px; flex: 1; border-radius: 4px; background: var(--line); }
+  .depth i.on { background: var(--blue); }
+  .adv { margin: 1.25rem 0 0; padding: 1rem 1.15rem; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 12px; }
+  .adv b { display: block; margin-bottom: .2rem; }
+
+  /* Recurring errors */
+  .err { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; gap: 1.4rem; max-width: 720px; }
+  .err li { display: grid; gap: .4rem; }
+  .err .row { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .meter { height: .8rem; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--orange); border-radius: 99px; }
+
+  /* FAQ */
+  .faq details { border-top: 1px solid var(--line); padding: 1.1rem 0; }
+  .faq details:last-child { border-bottom: 1px solid var(--line); }
+  .faq summary { cursor: pointer; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; font-size: 1.4rem; line-height: 1; color: var(--blue); }
+  .faq details[open] summary::after { content: "–"; }
+  .faq p { margin: .75rem 0 0; color: var(--muted); max-width: 62ch; }
+
+  .foot { border-top: 1px solid var(--line); padding-block: 2.5rem; color: var(--muted); font-size: .92rem; }
+  .menu-btn { background: none; border: 2px solid var(--line); border-radius: 10px; padding: .4rem .6rem; color: var(--ink); cursor: pointer; font: inherit; font-weight: 600; }
+  .mobile-nav { display: none; border-top: 1px solid var(--line); padding: .75rem 0 1rem; }
+  .mobile-nav.open { display: grid; gap: .25rem; }
+  .mobile-nav a { padding: .55rem 0; }
+
+  /* ===== Néon ===== */
+  .page { background-image: var(--bg-fx); background-repeat: no-repeat; }
+  .page::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: var(--grid-fx); background-size: 56px 56px; -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 62%); mask-image: linear-gradient(to bottom, #000 0%, transparent 62%); }
+  .topbar { background: var(--bar); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom-color: var(--edge); }
+  .logo { text-shadow: var(--glow-text); }
+  .logo svg { filter: var(--fx-blue); }
+  .menu-btn { border-color: var(--edge); }
+  .h1 { text-shadow: var(--glow-text); }
+  .h2 { text-shadow: var(--glow-h2); }
+  .btn-primary { box-shadow: var(--glow-box); }
+  .btn-primary:hover { filter: brightness(1.15); }
+  .btn-ghost { border-color: var(--blue); color: var(--blue); }
+  .btn-ghost:hover { background: var(--blue-soft); color: var(--ink); box-shadow: var(--glow-box); }
+  .band { border-color: var(--edge); }
+  .scene { border-color: var(--edge); box-shadow: var(--glow-box); }
+  .pline { filter: var(--fx-blue); }
+  .goal-b, .car-b, .pad-ring, .path-rec, .path-dots-b, .car-ghost { filter: var(--fx-blue); }
+  .goal-o, .car-o, .path-dots-o { filter: var(--fx-orange); }
+  .threat { fill-opacity: .3; }
+  .ball { filter: drop-shadow(0 0 6px rgba(255,255,255,.75)); }
+  .chip { box-shadow: 0 0 14px rgba(255,122,47,.45); }
+  .drop { background: var(--surface); border-color: var(--blue); box-shadow: var(--glow-soft); }
+  .drop:hover { box-shadow: var(--glow-box); }
+  .dims li { border-top-color: var(--blue); box-shadow: 0 -8px 16px -12px var(--blue); }
+  .mmr-line { filter: var(--fx-blue); }
+  .dot-win { filter: var(--fx-blue); }
+  .dot-loss { filter: var(--fx-orange); }
+  .tbl th { border-bottom-color: var(--blue); }
+  .bar > i { box-shadow: 0 0 10px var(--blue); }
+  .callout { border-left-color: var(--blue); box-shadow: -8px 0 16px -12px var(--blue); }
+  [role="tab"] { background: var(--surface); }
+  [role="tab"]:hover { border-color: var(--blue); }
+  [role="tab"][aria-selected="true"] { background: var(--blue); color: var(--on-blue); border-color: var(--blue); box-shadow: var(--glow-box); }
+  .depth i.on { box-shadow: 0 0 12px var(--blue); }
+  .adv { background: var(--bg); }
+  .meter > i { box-shadow: 0 0 12px var(--orange); }
+  .faq summary::after { text-shadow: var(--glow-text); }
+  .foot { border-top-color: var(--edge); }
+
+  
+.rl-moment-header{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:.8rem}
+@media(max-width:640px){.rl-moment-header{align-items:flex-start;flex-direction:column;gap:.35rem}}
+/* ===== Rocket League inspired replay HUD ===== */
+.rl-replay-shell{
+  background:
+    radial-gradient(circle at 50% 42%, rgba(40,110,255,.16), transparent 42%),
+    linear-gradient(180deg, rgba(3,8,25,.98), rgba(7,12,30,.98));
+  border:1px solid rgba(88,164,255,.28);
+  box-shadow: inset 0 0 70px rgba(0,95,255,.10), 0 18px 60px rgba(0,0,0,.28);
+  overflow:hidden;
+}
+.rl-hud{
+  position:absolute; z-index:5; left:50%; top:14px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:0; pointer-events:none;
+  filter:drop-shadow(0 5px 16px rgba(0,0,0,.65));
+}
+.rl-team{
+  min-width:116px; padding:7px 14px; color:#fff; font-weight:900;
+  font-family:'Big Shoulders Display',Impact,sans-serif; letter-spacing:.08em;
+  text-transform:uppercase; font-size:1rem; text-align:center;
+  background:linear-gradient(180deg,rgba(22,115,255,.96),rgba(8,43,115,.96));
+  border:1px solid rgba(120,190,255,.55);
+}
+.rl-team.orange{
+  background:linear-gradient(180deg,rgba(255,123,24,.96),rgba(126,45,5,.96));
+  border-color:rgba(255,180,100,.55);
+}
+.rl-score{
+  min-width:72px; padding:5px 12px; text-align:center; color:#fff;
+  background:rgba(5,9,20,.94); border-top:1px solid rgba(255,255,255,.12);
+  border-bottom:1px solid rgba(255,255,255,.12);
+  font-family:'Big Shoulders Display',Impact,sans-serif; font-size:1.55rem;
+}
+.rl-clock{
+  position:absolute; z-index:6; left:50%; top:61px; transform:translateX(-50%);
+  color:#fff; font:800 .72rem Figtree,system-ui,sans-serif; letter-spacing:.16em;
+  text-transform:uppercase; padding:.28rem .7rem; border-radius:999px;
+  background:rgba(2,5,15,.82); border:1px solid rgba(255,255,255,.12);
+}
+.rl-label{
+  position:absolute; z-index:6; top:14px; left:15px; padding:.35rem .65rem;
+  color:#dceaff; background:rgba(2,7,20,.72); border:1px solid rgba(90,170,255,.28);
+  border-radius:7px; font-size:.65rem; font-weight:800; letter-spacing:.11em;
+  text-transform:uppercase; backdrop-filter:blur(8px);
+}
+.rl-analysis{
+  position:absolute; z-index:6; right:15px; top:14px; padding:.35rem .65rem;
+  color:#fff; background:rgba(255,111,18,.88); border-radius:7px;
+  font-size:.65rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase;
+  box-shadow:0 0 18px rgba(255,111,18,.22);
+}
+.rl-cam{
+  position:absolute; z-index:6; left:15px; bottom:15px; color:rgba(255,255,255,.72);
+  font-size:.63rem; letter-spacing:.08em; text-transform:uppercase;
+  background:rgba(2,6,17,.65); padding:.32rem .5rem; border-radius:5px;
+}
+.rl-speed{
+  position:absolute; z-index:6; right:15px; bottom:15px; color:#fff;
+  font-family:'Big Shoulders Display',Impact,sans-serif; font-size:1.15rem;
+  padding:.25rem .5rem; background:rgba(2,6,17,.7); border-radius:5px;
+}
+.rl-replay-shell .field3d{border-radius:0; border-top:1px solid rgba(255,255,255,.06); border-bottom:1px solid rgba(255,255,255,.06)}
+.rl-replay-shell .field3d > svg{
+  filter:saturate(1.16) contrast(1.06) brightness(.92);
+}
+.rl-replay-shell .boostpanel{
+  background:linear-gradient(180deg,rgba(2,6,18,.94),rgba(6,12,29,.98));
+  margin:0; padding:12px 0 8px; border-top:1px solid rgba(83,155,255,.15);
+}
+.rl-replay-shell .boosttrend{
+  background:rgba(1,5,15,.8); margin:0; padding:9px 14px 2px;
+}
+.rl-replay-shell .tl{
+  background:linear-gradient(180deg,rgba(2,7,19,.98),rgba(6,11,26,.98));
+  margin:0; padding:9px 10px 0; height:76px;
+}
+.rl-replay-shell .tl-track{top:21px}
+.rl-replay-shell .tl-mark i{
+  box-shadow:0 0 8px rgba(45,140,255,.25);
+}
+
+/* ===== Exemple d'analyse ===== */
+  :root { --glass: linear-gradient(165deg, rgba(14,30,92,.78), rgba(5,11,38,.94)); }
+  :root[data-theme="light"] { --glass: var(--surface); }
+  .glass { background: var(--glass); border: 1px solid var(--edge); border-radius: 22px; box-shadow: var(--glow-soft); }
+
+  .depthrow { display: flex; align-items: center; gap: 1rem; margin-top: 1.1rem; flex-wrap: wrap; }
+  .depthrow .depth { width: 210px; margin: 0; }
+  .depthrow .depth i { height: 10px; }
+
+  .sumcard { display: grid; gap: 1.75rem; grid-template-columns: 1fr; padding: 1.5rem; margin-top: 1.5rem; }
+  @media (min-width: 900px) { .sumcard { grid-template-columns: 340px 1fr; align-items: center; padding: 1.75rem 2rem; } }
+  .ring { display: flex; align-items: center; gap: 1.25rem; }
+  .ring-fg { stroke: var(--blue); filter: var(--fx-blue); transition: stroke-dashoffset 1.2s ease-out; }
+  .ring-num { fill: var(--ink); font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 900; font-size: 44px; }
+  .ring-sub { fill: var(--muted); font-size: 13px; font-family: Figtree, system-ui, sans-serif; }
+  .bigstat { font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 800; font-size: 1.7rem; line-height: 1.1; }
+  .dimscore { list-style: none; margin: 0; padding: 0; display: grid; gap: .95rem 2.25rem; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .dimscore { grid-template-columns: 1fr 1fr; } }
+  .dimscore .row { display: flex; justify-content: space-between; gap: 1rem; font-size: .95rem; }
+  .dimscore .m { height: .5rem; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: .35rem; }
+  .dimscore .m i { display: block; height: 100%; border-radius: 99px; background: var(--blue); box-shadow: 0 0 10px var(--blue); }
+  .dimscore .m i.low { background: var(--orange); box-shadow: 0 0 10px var(--orange); }
+
+  .stage { display: grid; gap: 1.5rem; margin-top: 1.5rem; grid-template-columns: 1fr; }
+  @media (min-width: 980px) { .stage { grid-template-columns: 1.2fr 1fr; align-items: start; } }
+  .player { padding: 1rem 1rem 1.25rem; }
+  .player-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .25rem .25rem .8rem; }
+  .replay-btn { padding: .45rem 1rem; font-size: .92rem; }
+  .cone-o { fill: var(--orange); fill-opacity: .3; }
+  .cone-b { fill: var(--blue); fill-opacity: .28; }
+
+  .tl { position: relative; height: 68px; margin: 1.1rem 1.1rem 0; }
+  .tl-track { position: absolute; left: 0; right: 0; top: 14px; height: 6px; border-radius: 99px; background: var(--line); }
+  .tl-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 99px; background: var(--blue); box-shadow: 0 0 12px var(--blue); }
+  .tl-head { position: absolute; top: -6px; left: 0; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px; background: #fff; box-shadow: 0 0 10px #fff; }
+  .tl-mark { position: absolute; top: 7px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: .3rem; background: none; border: 0; color: var(--muted); font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; padding: 0 .3rem; z-index: 2; }
+  .tl-mark i { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--blue); background: var(--bg); transition: background .2s, box-shadow .2s; }
+  .tl-mark.err i { border-color: var(--orange); }
+  .tl-mark:hover { color: var(--ink); }
+  .tl-mark[aria-pressed="true"] { color: var(--ink); }
+  .tl-mark.good[aria-pressed="true"] i { background: var(--blue); box-shadow: 0 0 14px var(--blue); }
+  .tl-mark.err[aria-pressed="true"] i { background: var(--orange); box-shadow: 0 0 14px var(--orange); }
+
+  .insight { padding: clamp(1.25rem, 3vw, 1.9rem); }
+  .verdict { display: inline-flex; align-items: center; font-weight: 700; font-size: .9rem; padding: .25rem .85rem; border-radius: 999px; }
+  .verdict.err { background: var(--orange-soft); border: 1px solid var(--orange); box-shadow: 0 0 14px rgba(255,122,47,.45); }
+  .verdict.good { background: var(--blue-soft); border: 1px solid var(--blue); box-shadow: 0 0 14px rgba(31,182,255,.45); }
+  .insight .h3 { margin-top: .9rem; font-size: 2rem; text-shadow: var(--glow-h2); }
+  .blk { margin-top: 1.15rem; }
+  .blk b { display: block; font-size: .85rem; color: var(--muted); font-weight: 600; margin-bottom: .2rem; }
+  .blk p { max-width: 56ch; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; margin-top: 1.25rem; }
+  .fact { border: 1px solid var(--edge); border-radius: 12px; padding: .65rem .75rem; background: rgba(31,182,255,.05); }
+  .fact span { display: block; font-size: .78rem; line-height: 1.25; color: var(--muted); }
+  .fact strong { display: block; margin-top: .25rem; font-size: 1rem; }
+
+  .preview { display: block; width: 100%; max-width: 520px; margin-top: .9rem; border-radius: 14px; border: 1px solid var(--edge); box-shadow: var(--glow-soft); background: #000; }
+
+  /* ===== Passerelle profil (mode / rang / MMR) ===== */
+  html.gate-open, html.gate-open body { overflow: hidden; }
+  .gate { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: max(1.25rem, env(safe-area-inset-top, 0px)) 1.25rem calc(1.25rem + env(safe-area-inset-bottom, 0px)); background: rgba(2,5,20,.74); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  :root[data-theme="light"] .gate { background: rgba(16,22,51,.4); }
+  .gate[hidden] { display: none; }
+  .gate-card { width: min(440px, 100%); margin: auto; padding: clamp(1.5rem,4vw,2.25rem); }
+  .gate-card .chip { display: inline-flex; }
+  .gate-field { margin-top: 1.4rem; padding: 0; border: 0; display: flex; flex-direction: column; gap: .5rem; }
+  .gate-field legend { padding: 0; font-weight: 600; font-size: .95rem; }
+  .gate-field label { font-weight: 600; font-size: .95rem; }
+  .seg { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
+  .seg-btn { font: inherit; font-weight: 700; padding: .65rem 0; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  .seg-btn:hover { border-color: var(--blue); }
+  .seg-btn[aria-checked="true"] { background: var(--blue); border-color: var(--blue); color: var(--on-blue); box-shadow: var(--glow-box); }
+  .gate-field select, .gate-field input { font: inherit; font-size: 1rem; padding: .7rem .9rem; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); }
+  .gate-err { color: var(--orange); font-size: .9rem; margin: 1.1rem 0 0; }
+  .gate-edit-row { display: flex; justify-content: flex-end; margin-top: .5rem; }
+  .link-btn { font: inherit; font-size: .9rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; padding: .3rem; }
+  .link-btn:hover { color: var(--ink); }
+  .profile-badge { display: inline-flex; align-items: center; gap: .5rem; border: 2px solid var(--line); border-radius: 999px; padding: .4rem .9rem; font-size: .85rem; font-weight: 700; background: var(--bg); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .profile-badge:hover { border-color: var(--blue); }
+  .profile-badge::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+
+  /* ===== Feuille de route (étapes) ===== */
+  [role="tab"] .tab-dot { display: inline-block; width: .45rem; height: .45rem; border-radius: 50%; margin-right: .55rem; vertical-align: middle; background: var(--line); }
+  [role="tab"] .tab-dot.now { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+  .road-panel { padding: clamp(1.25rem,3vw,2rem) clamp(1.25rem,3vw,2.25rem); margin-top: 1.75rem; }
+  .road-status { display: inline-flex; align-items: center; gap: .5rem; font-weight: 700; font-size: .85rem; padding: .3rem .9rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .road-status i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--muted); flex: none; }
+  .road-status.now { border-color: var(--blue); color: var(--ink); background: var(--blue-soft); box-shadow: 0 0 14px rgba(31,182,255,.4); }
+  .road-status.now i { background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: roadpulse 1.6s ease-in-out infinite; }
+  @keyframes roadpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .road-status.now i { animation: none; } }
+
+  /* ===== Navigation par pages ===== */
+  .pagenav { display: flex; align-items: center; gap: .5rem; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; min-width: 0; }
+  .pagenav::-webkit-scrollbar { display: none; }
+  .pagenav a { flex: none; text-decoration: none; font-weight: 700; font-size: .9rem; padding: .5rem 1.05rem; border-radius: 999px; border: 2px solid transparent; color: var(--muted); white-space: nowrap; }
+  .pagenav a:hover { color: var(--ink); border-color: var(--line); }
+  .pagenav a[aria-selected="true"] { background: var(--blue); border-color: var(--blue); color: var(--on-blue); box-shadow: var(--glow-box); }
+  .mobile-nav a[aria-selected="true"] { color: var(--blue); }
+  .mobile-nav a[aria-selected="true"]::before { content: "▸ "; }
+  [data-page] { scroll-margin-top: 5.5rem; }
+  @keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  [data-page]:not([hidden]) { animation: pageIn .4s ease-out; }
+  @media (prefers-reduced-motion: reduce) { [data-page]:not([hidden]) { animation: none; } }
+
+  /* ===== Analyse IA réelle ===== */
+  .ai-card { padding: clamp(1.25rem,3vw,2rem); margin-top: 2rem; }
+  #aiInput { width: 100%; font: inherit; font-size: 1rem; padding: .85rem 1rem; border-radius: 14px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; min-height: 84px; }
+  #aiInput:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .ai-row { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+  #aiSubmit:disabled { opacity: .6; cursor: default; }
+  #aiStatus { color: var(--muted); }
+  #aiResult { margin-top: 1.4rem; padding-top: 1.4rem; border-top: 1px solid var(--edge); }
+
+  /* ===== Vision 3D du terrain ===== */
+  .field3d { position: relative; perspective: 1400px; border-radius: 16px; }
+  .field3d > svg { display: block; width: 100%; height: auto; transform: rotateX(26deg); transform-origin: 50% 100%; }
+  @media (prefers-reduced-motion: reduce) { .field3d > svg { transform: rotateX(18deg); } }
+  .car-shade, .ball-shade { fill: #000; opacity: .34; filter: blur(2px); }
+  :root[data-theme="light"] .car-shade, :root[data-theme="light"] .ball-shade { opacity: .2; }
+
+  .padnode .pad-glow { fill: var(--blue); filter: var(--fx-blue); opacity: .55; }
+  .padnode .pad-core { fill: #fff; }
+  .padnode.small .pad-glow { opacity: .4; }
+  .padnode.is-empty .pad-glow { opacity: .06; filter: none; }
+  .padnode.is-empty .pad-core { fill: var(--line); }
+
+  .boostpanel { display: flex; gap: clamp(1.5rem, 5vw, 3rem); justify-content: center; margin: 1.2rem .5rem 0; flex-wrap: wrap; }
+  .gauge-wrap { position: relative; width: 148px; text-align: center; }
+  .gauge { display: block; width: 100%; height: auto; }
+  .gauge-track { fill: none; stroke: var(--line); stroke-width: 10; }
+  .gauge-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray .5s ease; }
+  .gauge-fill.you { stroke: var(--blue); filter: var(--fx-blue); }
+  .gauge-fill.opp { stroke: var(--orange); filter: var(--fx-orange); }
+  .gauge-num { position: absolute; left: 0; right: 0; top: 56%; display: flex; flex-direction: column; align-items: center; }
+  .gauge-num strong { font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 800; font-size: 2rem; line-height: 1; }
+  .gauge-num span { font-size: .78rem; font-weight: 700; color: var(--muted); margin-top: .1rem; }
+  .gauge-tag { display: inline-block; margin-top: .5rem; font-size: .78rem; font-weight: 700; padding: .15rem .7rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .gauge-tag.low { border-color: var(--orange); color: var(--orange); }
+  .gauge-tag.mid { border-color: var(--line); color: var(--ink); }
+  .gauge-tag.high { border-color: var(--blue); color: var(--blue); }
+  .boosttrend { margin: 1.3rem .5rem 0; }
+  #trendSvg { width: 100%; height: 44px; display: block; margin-top: .5rem; }
+  .trend-line { fill: none; stroke: var(--blue); stroke-width: 2; opacity: .55; }
+  .trend-dot { fill: var(--bg); stroke: var(--blue); stroke-width: 2; }
+  .trend-dot.active { fill: var(--blue); filter: var(--fx-blue); }
+
+  /* ===== Style "vision jeu" (grille, buts, flammes de boost) ===== */
+  .hex-line { fill: none; stroke: var(--pitchline); stroke-width: 1; opacity: .55; }
+  .pitch-grid { opacity: .3; pointer-events: none; }
+  .goal-frame { fill: none; stroke-width: 3; }
+  .goal-frame-b { stroke: var(--blue); filter: var(--fx-blue); }
+  .goal-frame-o { stroke: var(--orange); filter: var(--fx-orange); }
+  .car-flame { opacity: .55; }
+
+/* ===== Abonnements Replaylab ===== */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:24px}
+.plan-card{position:relative;border:1px solid var(--line);border-radius:22px;padding:26px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:0 12px 40px rgba(0,0,0,.14)}
+.plan-card.featured{border-color:#8b7cff;box-shadow:0 0 0 1px #8b7cff55,0 18px 50px #5c4de522;transform:translateY(-6px)}
+.plan-badge{position:absolute;top:14px;right:14px;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:999px;background:#8b7cff;color:white}
+.plan-name{font-size:24px;font-weight:950}.plan-price{font-size:42px;font-weight:950;letter-spacing:-.06em;margin:18px 0 4px}.plan-price span{font-size:14px;letter-spacing:0;font-weight:600;opacity:.65}.plan-desc{min-height:44px;color:var(--muted)}
+.plan-features{list-style:none;padding:0;margin:22px 0;display:grid;gap:12px}.plan-features li:before{content:'✓';color:#70e1b1;font-weight:900;margin-right:9px}.plan-features li.no:before{content:'—';color:var(--muted)}
+.billing-toggle{display:flex;gap:8px;align-items:center;justify-content:center;margin:18px 0}.billing-toggle button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;padding:9px 15px;cursor:pointer}.billing-toggle button.active{background:#8b7cff;color:#fff;border-color:#8b7cff}
+.subscription-panel{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--panel);margin-top:20px}.subscription-status{font-weight:900}.pro-lock{display:inline-flex;align-items:center;gap:6px;font-size:11px;border:1px solid #8b7cff66;color:#a99fff;border-radius:999px;padding:4px 8px;font-weight:900}
+@media(max-width:900px){.pricing-grid{grid-template-columns:1fr}.plan-card.featured{transform:none}.subscription-panel{align-items:flex-start;flex-direction:column}}
+
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ===== Comptes + communauté ===== */
+  .auth-card { width:min(560px,100% - 2rem); padding:2rem; }
+  .auth-switch { display:flex; gap:.45rem; padding:.3rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); margin:1.2rem 0; }
+  .auth-switch button { flex:1; border:0; background:transparent; color:var(--muted); padding:.7rem 1rem; border-radius:999px; font:700 1rem Figtree,sans-serif; cursor:pointer; }
+  .auth-switch button.active { background:var(--blue); color:var(--on-blue); }
+  .auth-grid { display:grid; gap:1rem; }
+  .auth-label { display:grid; gap:.35rem; font-weight:700; }
+  .auth-label input, .auth-label textarea, .auth-label select { width:100%; border:1px solid var(--line); border-radius:12px; padding:.85rem 1rem; background:var(--bg); color:var(--ink); font:inherit; }
+  .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-top:.5rem; }
+  .role-card { border:1px solid var(--line); border-radius:14px; padding:1rem; cursor:pointer; background:var(--bg); }
+  .role-card.selected { border-color:var(--blue); box-shadow:var(--glow-box); }
+  .role-card input { position:absolute; opacity:0; pointer-events:none; }
+  .role-title { font-weight:800; display:block; }
+  .role-desc { font-size:.88rem; color:var(--muted); display:block; margin-top:.2rem; }
+  .auth-msg { min-height:1.35rem; margin:.7rem 0 0; }
+  .auth-msg.error { color:#ff8f8f; }
+  .auth-msg.ok { color:#72e6b0; }
+  .account-grid, .forum-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,.55fr); gap:1.2rem; align-items:start; }
+  .panel { border:1px solid var(--line); border-radius:18px; background:var(--surface); padding:1.2rem; }
+  .identity { display:flex; align-items:center; gap:.9rem; }
+  .avatar { width:48px; height:48px; border-radius:50%; display:grid; place-items:center; background:var(--blue); color:var(--on-blue); font-weight:900; }
+  .badge-role { display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:.2rem .6rem; font-size:.76rem; font-weight:800; }
+  .badge-coach { border-color:var(--orange); color:var(--orange); }
+  .thread { border:1px solid var(--line); border-radius:14px; padding:1rem; background:var(--bg); cursor:pointer; }
+  .thread + .thread { margin-top:.7rem; }
+  .thread:hover { border-color:var(--blue); }
+  .thread-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+  .thread-title { font-weight:800; }
+  .thread-meta { color:var(--muted); font-size:.82rem; margin-top:.3rem; }
+  .post { border-left:3px solid var(--line); padding:.8rem 1rem; margin-top:.8rem; background:var(--bg); border-radius:0 12px 12px 0; }
+  .post.coach { border-left-color:var(--orange); }
+  .hidden-auth { display:none !important; }
+  @media (max-width:800px) { .account-grid,.forum-grid { grid-template-columns:1fr; } .role-grid { grid-template-columns:1fr; } }
+</style>
+
+</head>
+<body class="page">
+
+<div class="gate" id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle" hidden>
+  <div class="gate-card glass auth-card">
+    <span class="chip">Compte Replaylab</span>
+    <h2 id="authTitle" class="h3" style="font-size:1.9rem;margin-top:1rem">Connecte-toi à Replaylab</h2>
+    <p class="muted small" style="margin:.5rem 0 0">Ton compte sauvegarde tes analyses, ton profil joueur et ton espace communauté.</p>
+    <div class="auth-switch" role="tablist">
+      <button type="button" id="authLoginTab" class="active">Connexion</button>
+      <button type="button" id="authSignupTab">Inscription</button>
+    </div>
+    <form id="authForm" class="auth-grid" novalidate>
+      <label class="auth-label" id="authNameWrap">Pseudo
+        <input id="authName" autocomplete="nickname" maxlength="30" placeholder="Ton pseudo Replaylab">
+      </label>
+      <label class="auth-label">Email
+        <input id="authEmail" type="email" autocomplete="email" required placeholder="toi@email.com">
+      </label>
+      <label class="auth-label">Mot de passe
+        <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="8 caractères minimum">
+      </label>
+      <div id="authRoleWrap">
+        <strong>Type de compte</strong>
+        <div class="role-grid">
+          <label class="role-card selected"><input type="radio" name="authRole" value="player" checked><span class="role-title">🎮 Joueur</span><span class="role-desc">Analyses, progression et recherche de coach.</span></label>
+          <label class="role-card"><input type="radio" name="authRole" value="coach"><span class="role-title">🧠 Coach</span><span class="role-desc">Profil coach et réponses dans le forum.</span></label>
+        </div>
+        <p class="small muted" style="margin:.55rem 0 0">Les comptes coach sont soumis à validation avant d'obtenir le badge coach.</p>
+      </div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Se connecter</button>
+      <button class="link-btn" id="authReset" type="button">Mot de passe oublié ?</button>
+      <p class="auth-msg" id="authMsg" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</div>
+
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
+  <div class="gate-card glass">
+    <span class="chip">Avant de commencer</span>
+    <h2 id="gateTitle" class="h3" style="font-size:1.8rem; margin-top:1rem">Dis-nous où tu en es</h2>
+    <p class="muted small" style="margin:.5rem 0 0; max-width:44ch">Ton mode, ton rang et ton MMR règlent la profondeur des analyses d'exemple sur cette page. Tu pourras les changer plus tard.</p>
+    <form id="gateForm" novalidate>
+      <fieldset class="gate-field">
+        <legend>Mode de jeu</legend>
+        <div class="seg" id="gateModeGroup" role="radiogroup" aria-label="Mode de jeu">
+          <button type="button" class="seg-btn" data-mode="1v1" role="radio" aria-checked="false">1v1</button>
+          <button type="button" class="seg-btn" data-mode="2v2" role="radio" aria-checked="false">2v2</button>
+          <button type="button" class="seg-btn" data-mode="3v3" role="radio" aria-checked="false">3v3</button>
+        </div>
+      </fieldset>
+      <div class="gate-field">
+        <label for="gateRank">Rang actuel</label>
+        <select id="gateRank" required>
+          <option value="" disabled selected>Choisis ton rang</option>
+          <option>Bronze</option>
+          <option>Argent</option>
+          <option>Or</option>
+          <option>Platine</option>
+          <option>Diamant</option>
+          <option>Champion</option>
+          <option>Grand Champion</option>
+          <option>SSL</option>
+        </select>
+      </div>
+      <div class="gate-field">
+        <label for="gateMmr">MMR actuel</label>
+        <input id="gateMmr" type="number" inputmode="numeric" min="0" max="3000" step="1" placeholder="ex. 850" required>
+      </div>
+      <p class="gate-err" id="gateErr" role="alert" style="display:none"></p>
+      <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1.4rem">Entrer sur le site</button>
+      <div class="gate-edit-row" id="gateCancelRow" hidden>
+        <button type="button" class="link-btn" id="gateCancel">Annuler</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  // Accès libre : le compte est optionnel pour le moment.
+  // L'utilisateur peut découvrir le site sans inscription et créer un compte plus tard.
+</script>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="flex items-center justify-between py-3 gap-3">
+      <a href="#accueil" data-nav="accueil" class="logo" aria-label="Replaylab, page d'accueil">
+        <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="none" stroke="currentColor" stroke-width="3"/><path d="M4 11c5 2 15 2 20 0M4 17c5-2 15-2 20 0" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>
+        Replaylab
+      </a>
+      <nav class="pagenav hidden md:flex flex-1 min-w-0" role="tablist" aria-label="Pages du site">
+        <a role="tab" href="#accueil" data-nav="accueil" aria-controls="accueil">Accueil</a>
+        <a role="tab" href="#projet" data-nav="projet" aria-controls="projet">Le projet</a>
+        <a role="tab" href="#analyse" data-nav="analyse" aria-controls="analyse">Analyse</a>
+        <a role="tab" href="#mmr" data-nav="mmr" aria-controls="mmr">Training MMR</a>
+        <a role="tab" href="#niveaux" data-nav="niveaux" aria-controls="niveaux">Exemple</a>
+        <a role="tab" href="#profil" data-nav="profil" aria-controls="profil">Profil</a>
+        <a role="tab" href="#forum" data-nav="forum" aria-controls="forum">Forum</a>
+        <a role="tab" href="#compte" data-nav="compte" aria-controls="compte">Compte</a>
+        <a role="tab" href="#suite" data-nav="suite" aria-controls="suite">Roadmap</a>
+        <a role="tab" href="#faq" data-nav="faq" aria-controls="faq">FAQ</a>
+      </nav>
+      <button type="button" class="profile-badge hidden md:inline-flex" id="accountHeaderBtn">—</button>
+      <button class="menu-btn md:hidden" id="menuBtn" aria-expanded="false" aria-controls="mobileNav">Menu</button>
+    </div>
+    <nav class="mobile-nav md:hidden" id="mobileNav" aria-label="Pages du site">
+      <a href="#accueil" data-nav="accueil">Accueil</a>
+      <a href="#projet" data-nav="projet">Le projet</a>
+      <a href="#analyse" data-nav="analyse">Analyse</a>
+      <a href="#mmr" data-nav="mmr">Training MMR</a>
+      <a href="#niveaux" data-nav="niveaux">Exemple d'analyse</a>
+      <a href="#profil" data-nav="profil">Ton profil</a>
+       <a href="#forum" data-nav="forum">Forum & coaching</a>
+       <a href="#compte" data-nav="compte">Compte</a>
+      <a href="#abonnements" data-nav="abonnements">Abonnements</a>
+      <a href="#suite" data-nav="suite">Feuille de route</a>
+      <a href="#faq" data-nav="faq">FAQ</a>
+      <button type="button" class="profile-badge" id="accountMobileBtn" style="margin-top:.6rem">—</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section id="accueil" data-page="accueil" class="wrap sec" style="padding-top: clamp(2.5rem, 6vw, 5rem);">
+    <div class="grid gap-12 lg:grid-cols-[1.05fr_1fr] items-center">
+      <div>
+        <h1 class="h1">Ton replay sait pourquoi tu stagnes.</h1>
+        <p class="lead">Importe une partie de Rocket League. Une IA analyse chacune de tes décisions, repère les erreurs qui reviennent et t'explique ce que tu aurais dû jouer à la place.</p>
+        <div class="flex flex-wrap gap-3 mt-8">
+          <a class="btn btn-primary" href="#niveaux" data-nav="niveaux">Voir une analyse d'exemple</a>
+          <a class="btn btn-ghost" href="#projet" data-nav="projet">Comprendre le projet</a>
+        </div>
+      </div>
+
+      <figure class="scene">
+        <div class="scene-head">
+          <span class="chip">0:47 · Défense</span>
+          <span class="small muted">Exemple d'analyse</span>
+        </div>
+        <div class="field3d">
+        <svg viewBox="0 0 640 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Vue 3D du terrain. Le joueur bleu fonce sur la balle alors que l'adversaire orange peut tirer dans un but resté ouvert. La position recommandée est un repli vers le but, en passant par un pad de boost.">
+          <defs>
+            <pattern id="hexGridHero" width="34" height="30" patternUnits="userSpaceOnUse">
+              <path class="hex-line" d="M0 15 L17 0 L34 15 L17 30 Z"/>
+            </pattern>
+          </defs>
+          <rect class="pitch" x="6" y="6" width="628" height="388" rx="36"/>
+          <rect class="pitch-grid" x="6" y="6" width="628" height="388" rx="36" fill="url(#hexGridHero)"/>
+          <line class="pline" x1="320" y1="6" x2="320" y2="394"/>
+          <circle class="pline nofill" cx="320" cy="200" r="52"/>
+          <rect class="goal-frame goal-frame-b" x="-2" y="146" width="20" height="108" rx="6"/>
+          <rect class="goal-b" x="0" y="160" width="14" height="80" rx="3"/>
+          <rect class="goal-frame goal-frame-o" x="622" y="146" width="20" height="108" rx="6"/>
+          <rect class="goal-o" x="626" y="160" width="14" height="80" rx="3"/>
+          <rect class="pline nofill" x="14" y="130" width="72" height="140" rx="8"/>
+          <rect class="pline nofill" x="554" y="130" width="72" height="140" rx="8"/>
+          <circle class="pad" cx="130" cy="70" r="7"/>
+          <circle class="pad" cx="130" cy="330" r="7"/>
+          <circle class="pad" cx="510" cy="70" r="7"/>
+          <circle class="pad" cx="510" cy="330" r="7"/>
+          <circle class="pad" cx="320" cy="40" r="7"/>
+          <circle class="pad" cx="320" cy="360" r="7"/>
+          <circle class="pad" cx="168" cy="226" r="7"/>
+          <circle class="pad-ring" cx="168" cy="226" r="13"/>
+
+          <polygon class="threat a-threat" points="292,190 14,160 14,240"/>
+          <path class="path-dots-o" d="M292 190 L20 200"/>
+
+          <path class="path-dots-b" d="M215 140 L272 180"/>
+          <path class="path-rec a-path" pathLength="1" d="M215 140 C 196 190, 172 228, 118 262"/>
+
+          <g class="a-ghost" transform="translate(110 268) rotate(200)">
+            <path class="car-ghost" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+          </g>
+
+          <g transform="translate(360 226) rotate(196)">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-o car-flame" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-o" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <g transform="translate(215 140) rotate(35)">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-b car-flame" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-b" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <ellipse class="ball-shade" cx="292" cy="199" rx="13" ry="5"/>
+          <circle class="ball" cx="292" cy="190" r="13"/>
+          <path class="ball-seam" d="M281 184 Q292 190 303 184 M281 196 Q292 190 303 196"/>
+        </svg>
+        </div>
+        <ul class="legend">
+          <li><span class="sw sw-you"></span>Toi : tu engages le duel en dernier défenseur</li>
+          <li><span class="sw sw-threat"></span>L'angle de tir que ton engagement laisse ouvert</li>
+          <li><span class="sw sw-rec"></span>Position recommandée, boost pris en chemin</li>
+        </ul>
+        <p class="scene-note">Tu quittes ta place pour un duel que ton coéquipier ne couvre pas. L'adversaire garde la balle et tire dans le but vide.</p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- PROJET -->
+  <section id="projet" data-page="projet" class="band sec" hidden>
+    <div class="wrap grid gap-12 lg:grid-cols-2">
+      <div>
+        <h2 class="h2">Un coach qui a vu toute ta partie</h2>
+        <p class="prose" style="margin-top:1.5rem">Replaylab est un site d'entraînement pour Rocket League. Il lit les replays que tu importes et analyse ton gameplay bien au-delà des buts, des tirs et de la possession.</p>
+        <p class="prose">L'IA regarde le contexte de chaque action : où tu étais, ce que tes coéquipiers faisaient, combien de boost il te restait, ce que l'adversaire préparait. Elle relève tes bonnes décisions, tes erreurs, et surtout celles qui reviennent partie après partie.</p>
+        <p class="prose">Pour chaque erreur, tu sais pourquoi la décision était mauvaise et laquelle aurait mieux convenu dans cette situation.</p>
+      </div>
+
+      <div>
+        <label class="drop" for="replayFile">
+          <strong>Importer une partie</strong>
+          <span class="muted">Choisis un fichier .replay ou une vidéo .mp4 de ta partie.</span>
+          <span class="btn btn-primary" style="margin-top:.6rem">Choisir un fichier</span>
+          <input id="replayFile" class="sr-only" type="file" accept=".replay,.mp4,video/mp4">
+        </label>
+        <p class="status" id="importStatus" role="status" aria-live="polite"></p>
+        <video id="preview" class="preview" controls playsinline preload="metadata" style="display:none" aria-label="Aperçu de la vidéo importée"></video>
+        <p class="small muted" style="max-width:52ch">Cette page est une maquette. L'import n'envoie aucun fichier : la vidéo est lue uniquement dans ton navigateur et l'analyse sera branchée dans la première version du service.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ANALYSE -->
+  <section id="analyse" data-page="analyse" class="wrap sec" hidden>
+    <h2 class="h2">Ce que l'IA regarde dans ta partie</h2>
+    <p class="prose muted" style="margin-top:1.25rem">Huit angles de lecture, pour comprendre ton jeu au lieu de le résumer en chiffres.</p>
+    <ul class="dims">
+      <li><h3>Positionnement</h3><p>Où tu te trouves par rapport à la balle, à tes coéquipiers et à ton but au moment de chaque décision.</p></li>
+      <li><h3>Challenges</h3><p>Quand tu engages un duel, avec quelle vitesse et quel angle, et ce que ça te coûte si tu le perds.</p></li>
+      <li><h3>Contrôles</h3><p>La qualité de tes touches : tu gardes la balle ou tu l'offres à l'adversaire.</p></li>
+      <li><h3>Rotations</h3><p>Après ton action, tu reprends la bonne place ou tu laisses un coéquipier seul.</p></li>
+      <li><h3>Gestion du boost</h3><p>Ton boost à l'engagement, tes détours pour en récupérer, les moments où tu es à sec.</p></li>
+      <li><h3>Prises de risque</h3><p>Les paris que tu tentes, et si la situation de jeu les justifiait.</p></li>
+      <li><h3>Décisions offensives et défensives</h3><p>Attaquer, temporiser ou se replier : le bon choix pour chaque phase de jeu.</p></li>
+      <li><h3>Réaction à l'adversaire</h3><p>Comment tu t'adaptes à ses habitudes au fil de la partie.</p></li>
+    </ul>
+  </section>
+
+  <!-- TRAINING MMR -->
+  <section id="mmr" data-page="mmr" class="band sec" hidden>
+    <div class="wrap">
+      <h2 class="h2">Un Training MMR qui mesure ton jeu, pas ton score</h2>
+      <p class="prose" style="margin-top:1.5rem">Le Training MMR est indépendant du MMR officiel de Rocket League. Il représente le niveau de performance réellement observé dans les parties analysées.</p>
+      <p class="prose">Tu peux perdre une partie en jouant très bien et gagner du Training MMR. Tu peux en gagner une en jouant mal et ne presque rien gagner. Chaque variation reste limitée : la courbe suit ta progression sur la durée, pas le résultat d'un seul match.</p>
+
+      <div class="scroll-x" style="margin-top:2.5rem">
+        <svg id="mmrChart" class="chart" viewBox="0 0 640 260" role="img" aria-label="Courbe du Training MMR sur dix parties d'exemple, de 1240 à 1266 points."></svg>
+      </div>
+      <div class="key" aria-hidden="true">
+        <span><i class="k-dot k-win"></i>Victoire</span>
+        <span><i class="k-dot k-loss"></i>Défaite</span>
+        <span>Données d'exemple sur 10 parties</span>
+      </div>
+
+      <p class="callout"><strong>Partie 2 :</strong> défaite, mais performance très solide, donc +8. <strong>Partie 3 :</strong> victoire avec un jeu moyen, donc seulement +1.</p>
+
+      <div class="scroll-x" style="margin-top:2rem">
+        <table class="tbl">
+          <caption class="sr-only">Détail des dix parties d'exemple</caption>
+          <thead><tr><th scope="col">Partie</th><th scope="col">Résultat</th><th scope="col">Performance observée</th><th scope="col">Training MMR</th></tr></thead>
+          <tbody id="mmrRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- NIVEAUX -->
+  <section id="niveaux" data-page="niveaux" class="wrap sec" hidden>
+    <h2 class="h2">Une partie, décortiquée moment par moment</h2>
+    <p class="prose muted" style="margin-top:1.25rem">Voici ce que tu reçois après un import. Choisis ton rang, puis clique sur un moment de la timeline : la même situation est rejouée et expliquée à ton niveau.</p>
+
+    <div class="tabs" role="tablist" aria-label="Rang du joueur" id="tabs"></div>
+    <div class="depthrow">
+      <div class="depth" id="depthBar" aria-hidden="true"></div>
+      <p class="small muted" id="depthText" style="margin:0"></p>
+    </div>
+
+    <!-- Bilan de la partie -->
+    <div class="glass sumcard">
+      <div class="ring">
+        <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label="Performance de la partie : 59 sur 100">
+          <circle cx="66" cy="66" r="54" fill="none" stroke="var(--line)" stroke-width="10"/>
+          <circle id="ringFg" class="ring-fg" cx="66" cy="66" r="54" fill="none" stroke-width="10" stroke-linecap="round" transform="rotate(-90 66 66)" stroke-dasharray="339.3" stroke-dashoffset="339.3"/>
+          <text x="66" y="74" text-anchor="middle" class="ring-num">59</text>
+          <text x="66" y="94" text-anchor="middle" class="ring-sub">sur 100</text>
+        </svg>
+        <div>
+          <p class="small muted" style="margin:0">Performance de la partie</p>
+          <p class="bigstat" style="margin:.15rem 0 0"><span class="pos">+2</span> Training MMR</p>
+          <p class="small muted" style="margin:.35rem 0 0">3 erreurs, 1 bonne décision</p>
+        </div>
+      </div>
+      <ul class="dimscore" id="dimList" aria-label="Score par angle d'analyse"></ul>
+    </div>
+
+    <div class="stage">
+      <!-- Lecteur de replay -->
+      <div class="glass player">
+        <div class="player-head">
+          <span class="chip" id="momentChip">0:47 · Défense</span>
+          <button type="button" class="btn btn-ghost replay-btn" id="replayBtn">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" style="margin-right:.5rem"><path d="M3 2l9 5-9 5z" fill="currentColor"/></svg>
+            Rejouer
+          </button>
+        </div>
+
+        <div class="field3d rl-replay-shell">
+          <div class="rl-label">REPLAYLAB // REPLAY ANALYSIS</div>
+          <div class="rl-analysis" id="rlAnalysisBadge">ANALYSE IA</div>
+          <div class="rl-hud" aria-hidden="true">
+            <span class="rl-team">BLUE</span><span class="rl-score">2</span>
+            <span class="rl-score">1</span><span class="rl-team orange">ORANGE</span>
+          </div>
+          <div class="rl-clock">1:47</div>
+          <div class="rl-cam">CAMÉRA : BROADCAST · 2v2</div>
+          <div class="rl-speed">128 KM/H</div>
+        <svg id="stageSvg" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Replay en vue 3D du moment sélectionné, avec ton coéquipier, deux adversaires et le niveau de boost affiché">
+          <defs>
+            <pattern id="hexGridStage" width="34" height="30" patternUnits="userSpaceOnUse">
+              <path class="hex-line" d="M0 15 L17 0 L34 15 L17 30 Z"/>
+            </pattern>
+          </defs>
+          <rect class="pitch" x="6" y="6" width="628" height="388" rx="36"/>
+          <rect class="pitch-grid" x="6" y="6" width="628" height="388" rx="36" fill="url(#hexGridStage)"/>
+          <line class="pline" x1="320" y1="6" x2="320" y2="394"/>
+          <circle class="pline nofill" cx="320" cy="200" r="52"/>
+          <rect class="goal-frame goal-frame-b" x="-2" y="146" width="20" height="108" rx="6"/>
+          <rect class="goal-b" x="0" y="160" width="14" height="80" rx="3"/>
+          <rect class="goal-frame goal-frame-o" x="622" y="146" width="20" height="108" rx="6"/>
+          <rect class="goal-o" x="626" y="160" width="14" height="80" rx="3"/>
+          <rect class="pline nofill" x="14" y="130" width="72" height="140" rx="8"/>
+          <rect class="pline nofill" x="554" y="130" width="72" height="140" rx="8"/>
+          <g id="padsLayer"></g>
+          <g id="padRings"></g>
+          <polygon id="cone" class="cone cone-o" points="" style="opacity:0"/>
+          <path id="recPath" class="path-rec" pathLength="1" d=""/>
+          <g id="ghost" style="opacity:0"><path class="car-ghost" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/></g>
+          <g id="mate" style="display:none">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-b car-flame" fill-opacity=".55" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-b" fill-opacity=".55" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <g id="opp2" style="display:none">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-o car-flame" fill-opacity=".7" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-o" fill-opacity=".7" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <g id="opp">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-o car-flame" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-o" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <g id="you">
+            <ellipse class="car-shade" cy="10" rx="20" ry="8"/>
+            <path class="car-b car-flame" d="M-20 -3 L-30 0 L-20 3 Z"/>
+            <path class="car-b" d="M-20 -8 L-6 -10 L12 -6 L20 0 L12 6 L-6 10 L-20 8 Z"/>
+            <path class="car-nose" d="M2 -4 L13 -2 L13 2 L2 4 Z"/>
+          </g>
+          <g id="ball"><ellipse class="ball-shade" cy="9" rx="13" ry="5"/><circle class="ball" r="13"/><path class="ball-seam" d="M-11 -6 Q0 0 11 -6 M-11 6 Q0 0 11 6"/></g>
+        </svg>
+        </div>
+
+        <div class="boostpanel" aria-label="Boost de toi et de l'adversaire pour ce moment">
+          <div class="gauge-wrap">
+            <svg class="gauge" viewBox="0 0 120 68" aria-hidden="true">
+              <path class="gauge-track" d="M10 62 A50 50 0 0 1 110 62"/>
+              <path class="gauge-fill you" id="gaugeYou" pathLength="100" stroke-dasharray="0 100" d="M10 62 A50 50 0 0 1 110 62"/>
+            </svg>
+            <div class="gauge-num"><strong id="gYouVal">—</strong><span>Toi</span></div>
+            <span class="gauge-tag" id="gYouTag"></span>
+          </div>
+          <div class="gauge-wrap">
+            <svg class="gauge" viewBox="0 0 120 68" aria-hidden="true">
+              <path class="gauge-track" d="M10 62 A50 50 0 0 1 110 62"/>
+              <path class="gauge-fill opp" id="gaugeOpp" pathLength="100" stroke-dasharray="0 100" d="M10 62 A50 50 0 0 1 110 62"/>
+            </svg>
+            <div class="gauge-num"><strong id="gOppVal">—</strong><span>Adversaire</span></div>
+            <span class="gauge-tag" id="gOppTag"></span>
+          </div>
+        </div>
+
+        <div class="boosttrend">
+          <span class="small muted">Ton boost sur toute la partie</span>
+          <svg id="trendSvg" viewBox="0 0 260 44" role="img" aria-label="Évolution de ton boost sur les quatre moments de la partie"></svg>
+        </div>
+
+        <div class="key" aria-hidden="true" style="margin:.9rem .5rem 0">
+          <span><i class="sw sw-you"></i>Toi</span>
+          <span><i class="sw" style="background:var(--blue);opacity:.55"></i>Coéquipier</span>
+          <span><i class="sw" style="background:var(--orange)"></i>Adversaire</span>
+          <span><i class="sw sw-rec"></i>Position ou trajet conseillé</span>
+          <span><i class="sw" style="background:var(--line);border:1px solid var(--muted)"></i>Pad de boost vide</span>
+        </div>
+
+        <div class="tl" id="tl">
+          <div class="tl-track"><i class="tl-fill" id="tlFill"></i><span class="tl-head" id="tlHead"></span></div>
+        </div>
+      </div>
+
+      <!-- Analyse du moment -->
+      <div class="glass insight" id="insight" role="tabpanel" tabindex="0" aria-live="polite">
+        <div class="rl-moment-header">
+          <span class="chip">REPLAY EVENT</span>
+          <span class="small muted">DÉCISION · TIMING · POSITION</span>
+        </div>
+        <span class="verdict err" id="verdict">Erreur</span>
+        <h3 class="h3" id="mTitle"></h3>
+        <div class="blk"><b>Ce qui s'est passé</b><p id="mWhat" style="margin:0"></p></div>
+        <div class="blk"><b>Pourquoi c'est un problème</b><p id="mWhy" style="margin:0"></p></div>
+        <div class="adv"><b id="tipLabel">Meilleure décision</b><span id="mTip"></span></div>
+        <div class="facts" id="mFacts"></div>
+      </div>
+    </div>
+
+    <!-- Analyse IA réelle -->
+    <div class="glass ai-card">
+      <span class="chip">Alimenté par Claude</span>
+      <h3 class="h3" style="font-size:1.5rem; margin-top:.9rem">Essaie avec ta propre situation</h3>
+      <p class="muted small" style="margin:.4rem 0 1.1rem; max-width:58ch">Décris un moment de ta partie. Une vraie IA l'analyse, à la profondeur de ton rang.</p>
+      <form id="aiForm">
+        <label for="aiInput" class="sr-only">Décris ce qui s'est passé</label>
+        <textarea id="aiInput" rows="3" required placeholder="Ex. à 1:20, dernier défenseur avec peu de boost, j'engage sur l'attaquant qui garde la balle et marque."></textarea>
+        <div class="ai-row">
+          <button type="submit" class="btn btn-primary" id="aiSubmit">Analyser</button>
+          <span class="small muted">Ton rang choisi au départ règle la profondeur de la réponse.</span>
+        </div>
+      </form>
+      <p class="small" id="aiStatus" role="status" aria-live="polite" style="margin-top:.9rem; min-height:1.3rem"></p>
+      <div id="aiResult" hidden></div>
+    </div>
+  </section>
+
+  <!-- PROFIL -->
+  <section id="profil" data-page="profil" class="band sec" hidden>
+    <div class="wrap">
+      <h2 class="h2">Ton profil de jeu se dessine partie après partie</h2>
+      <p class="prose" style="margin-top:1.5rem">Chaque analyse est conservée. Replaylab repère les habitudes, les forces et les problèmes qui reviennent, puis suit leur évolution.</p>
+      <ul class="err" aria-label="Erreurs récurrentes, exemple sur 12 parties">
+        <li>
+          <div class="row"><strong>Challenge en dernier défenseur sans couverture</strong><span class="muted">7 parties sur 12</span></div>
+          <div class="meter"><i style="width:58%"></i></div>
+        </li>
+        <li>
+          <div class="row"><strong>Retour en défense sans boost</strong><span class="muted">5 parties sur 12</span></div>
+          <div class="meter"><i style="width:42%"></i></div>
+        </li>
+        <li>
+          <div class="row"><strong>Rotation coupée après un dégagement</strong><span class="muted">4 parties sur 12</span></div>
+          <div class="meter"><i style="width:33%"></i></div>
+        </li>
+      </ul>
+      <p class="callout">Le premier point est passé de 9 à 7 parties sur 12 en quatre parties. Il baisse, mais reste ton principal frein.</p>
+      <p class="small muted" style="margin-top:1rem">Données d'exemple.</p>
+    </div>
+  </section>
+
+
+  <!-- COMPTE -->
+  <section id="compte" data-page="compte" class="wrap sec" hidden>
+    <div class="account-grid">
+      <div>
+        <span class="chip">Espace personnel</span>
+        <h2 class="h2" style="margin-top:.8rem">Ton compte Replaylab</h2>
+        <p class="lead">Retrouve ton profil joueur, tes analyses et tes préférences au même endroit.</p>
+        <div class="panel" style="margin-top:1.5rem">
+          <div class="identity"><div class="avatar" id="accountAvatar">?</div><div><strong id="accountName">—</strong><div class="muted small" id="accountEmail">—</div><div style="margin-top:.35rem"><span class="badge-role" id="accountRole">Joueur</span></div></div></div>
+          <div class="grid md:grid-cols-2 gap-3" style="margin-top:1.2rem">
+            <label class="auth-label">Mode principal<input id="accountMode" placeholder="2v2"></label>
+            <label class="auth-label">Rang<input id="accountRank" placeholder="Grand Champion"></label>
+            <label class="auth-label">MMR<input id="accountMmr" type="number" min="0" max="3000" placeholder="1500"></label>
+            <label class="auth-label">Spécialité coach (si validé)<input id="accountSpecialty" placeholder="1v1 · mécanique · rotation"></label>
+          </div>
+          <div style="display:flex;gap:.7rem;flex-wrap:wrap;margin-top:1rem"><button class="btn btn-primary" id="saveAccount" type="button">Enregistrer</button><button class="btn btn-ghost" id="logoutBtn" type="button">Se déconnecter</button></div>
+          <p class="auth-msg" id="accountMsg"></p>
+        </div>
+      </div>
+      <aside class="panel"><h3 class="h3">Statut</h3><p class="muted small" style="margin-top:.5rem" id="coachStatus">—</p><hr style="border:0;border-top:1px solid var(--line);margin:1rem 0"><p class="small muted">La validation coach permet de garder une communauté fiable : le rôle technique ne donne pas automatiquement le badge public.</p></aside>
+    </div>
+  </section>
+
+  <!-- FORUM -->
+  <section id="forum" data-page="forum" class="band sec" hidden>
+    <div class="wrap">
+      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-end;flex-wrap:wrap">
+        <div><span class="chip">Communauté</span><h2 class="h2" style="margin-top:.8rem">Forum & coaching</h2><p class="prose muted" style="margin-top:1rem">Les joueurs posent leurs problèmes de gameplay. Les coachs validés peuvent répondre, analyser et accompagner.</p></div>
+        <button class="btn btn-primary" id="newThreadBtn" type="button">+ Nouvelle discussion</button>
+      </div>
+      <div class="forum-grid" style="margin-top:2rem">
+        <div><div id="threadList"><p class="muted">Chargement des discussions…</p></div></div>
+        <aside class="panel"><h3 class="h3">Fonctionnement</h3><ul class="muted small" style="padding-left:1.2rem"><li>Compte joueur : créer des discussions et demander de l'aide.</li><li>Compte coach : répondre et afficher un badge après validation.</li><li>Les analyses de replays pourront être jointes aux discussions.</li></ul></aside>
+      </div>
+      <div class="panel" id="threadPanel" hidden style="margin-top:1.2rem">
+        <div style="display:flex;justify-content:space-between;gap:1rem;align-items:center"><div><h3 class="h3" id="threadPanelTitle">Discussion</h3><div class="thread-meta" id="threadPanelMeta"></div></div><button class="link-btn" id="closeThread" type="button">Fermer</button></div>
+        <div id="postList"></div>
+        <form id="postForm" style="margin-top:1rem"><label class="auth-label">Réponse<textarea id="postBody" rows="4" required placeholder="Explique ton analyse ou ton conseil…"></textarea></label><button class="btn btn-primary" style="margin-top:.7rem" type="submit">Répondre</button><p class="auth-msg" id="postMsg"></p></form>
+      </div>
+    </div>
+  </section>
+
+  <div class="gate" id="threadGate" role="dialog" aria-modal="true" hidden>
+    <div class="gate-card glass auth-card"><span class="chip">Nouvelle discussion</span><h2 class="h3" style="font-size:1.8rem;margin-top:1rem">Demander de l'aide</h2><form id="threadForm" class="auth-grid" style="margin-top:1rem"><label class="auth-label">Titre<input id="threadTitle" maxlength="120" required placeholder="Ex. Je challenge trop souvent en dernier défenseur"></label><label class="auth-label">Catégorie<select id="threadCategory"><option value="gameplay">Gameplay</option><option value="mecanique">Mécaniques</option><option value="rotation">Rotation</option><option value="mental">Progression</option><option value="replay">Analyse de replay</option></select></label><label class="auth-label">Message<textarea id="threadBody" rows="6" required placeholder="Décris la situation, ton rang et ce que tu veux comprendre…"></textarea></label><div style="display:flex;gap:.7rem;flex-wrap:wrap"><button class="btn btn-primary" type="submit">Publier</button><button class="btn btn-ghost" type="button" id="cancelThread">Annuler</button></div><p class="auth-msg" id="threadMsg"></p></form></div>
+  </div>
+
+  <!-- ROADMAP -->
+  <section id="suite" data-page="suite" class="wrap sec" hidden>
+    <h2 class="h2">Une base volontairement simple, puis on élargit</h2>
+    <p class="prose muted" style="margin-top:1.25rem">Choisis une étape pour voir ce qu'elle contient.</p>
+
+    <div class="tabs" role="tablist" aria-label="Étapes du projet" id="roadTabs"></div>
+
+    <div class="glass road-panel" id="roadPanel" role="tabpanel" tabindex="0">
+      <span class="road-status" id="roadStatus"><i></i><span id="roadStatusText"></span></span>
+      <h3 class="h3" id="roadTitle" style="margin-top:.9rem; font-size:1.75rem"></h3>
+      <p id="roadText" class="prose" style="margin-top:.6rem"></p>
+    </div>
+  </section>
+
+  
+<!-- ===== ANALYSE IA REPLAY ===== -->
+<section id="analyse-ia" data-page="analyse-ia" class="wrap sec" hidden>
+<h2 class="h2">Analyse ton replay avec Replaylab AI</h2>
+<p class="prose muted" style="margin-top:1rem">Importe un fichier .replay ou une vidéo .mp4/.webm/.mov. Replaylab analyse les replays avec la télémétrie et les vidéos en extrayant des images de la partie.</p>
+<div class="glass" style="padding:1.4rem;margin-top:1.5rem">
+<label class="drop" for="rlReplayFile"><strong>Importer un replay Rocket League</strong><span class="muted">Formats : .replay, .mp4, .webm, .mov</span><span class="btn btn-primary" style="margin-top:.5rem">Choisir le fichier</span><input id="rlReplayFile" type="file" accept=".replay,.mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" class="sr-only"></label>
+<p id="rlFileName" class="status" role="status">Aucun fichier sélectionné.</p>
+<div style="display:flex;gap:.7rem;flex-wrap:wrap"><button id="rlAnalyzeBtn" class="btn btn-primary" disabled>Lancer l’analyse</button><button id="rlClearBtn" class="btn btn-ghost" type="button">Effacer</button></div>
+<div id="rlProgress" style="display:none;margin-top:1rem"><strong id="rlProgressTitle">Préparation…</strong><div style="height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:.5rem"><i id="rlProgressBar" style="display:block;height:100%;width:0%;background:var(--blue);transition:width .3s"></i></div><p id="rlProgressText" class="small muted">—</p></div>
+<p id="rlAiMsg" class="small" role="status" style="margin-top:.8rem;min-height:1.2rem"></p>
+</div>
+<div id="rlResult" hidden style="margin-top:1.5rem">
+<div class="pricing-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><article class="plan-card"><div class="plan-name">Score</div><div id="rlScore" class="plan-price">—</div></article><article class="plan-card"><div class="plan-name">Training MMR</div><div id="rlDelta" class="plan-price">—</div></article><article class="plan-card"><div class="plan-name">Forces</div><div id="rlStrengthN" class="plan-price">—</div></article><article class="plan-card"><div class="plan-name">À travailler</div><div id="rlWeakN" class="plan-price">—</div></article></div>
+<div class="glass" style="padding:1.4rem;margin-top:1rem"><h3 class="h3">Résumé</h3><p id="rlSummary" class="prose" style="margin-top:.7rem"></p></div>
+<div class="pricing-grid" style="margin-top:1rem"><article class="plan-card"><h3 class="h3">Points forts</h3><ul id="rlStrengths" class="plan-features"></ul></article><article class="plan-card"><h3 class="h3">Points faibles</h3><ul id="rlWeaknesses" class="plan-features"></ul></article></div>
+<div class="glass" style="padding:1.4rem;margin-top:1rem"><h3 class="h3">Moments clés</h3><div id="rlMoments"></div></div>
+<div class="glass" style="padding:1.4rem;margin-top:1rem"><h3 class="h3">Plan d’entraînement</h3><div id="rlTraining"></div></div>
+</div>
+</section>
+
+<!-- ===== Abonnements ===== -->
+<section id="abonnements" class="section">
+  <div class="section-head">
+    <div><div class="eyebrow">REPLAYLAB PRO</div><h2>Choisis ton niveau de progression.</h2><p class="muted">Commence gratuitement. Passe à Pro quand tu veux débloquer davantage d'analyses et d'outils.</p></div>
+  </div>
+  <div class="billing-toggle" aria-label="Période de facturation"><button class="active" data-billing="monthly">Mensuel</button><button data-billing="yearly">Annuel <strong>−20 %</strong></button></div>
+  <div class="pricing-grid">
+    <article class="plan-card"><div class="plan-name">Free</div><div class="plan-price" data-month="0" data-year="0">0 € <span>/ mois</span></div><p class="plan-desc">Pour découvrir Replaylab et analyser ses premières parties.</p><ul class="plan-features"><li>Profil joueur</li><li>Accès aux exemples</li><li>Forum communautaire</li><li>5 analyses par mois</li><li class="no">Historique avancé</li><li class="no">Statistiques détaillées</li></ul><button class="btn btn-ghost plan-select" data-plan="free">Continuer gratuitement</button></article>
+    <article class="plan-card featured"><div class="plan-badge">Le plus choisi</div><div class="plan-name">Pro</div><div class="plan-price" data-month="9.99" data-year="7.99">9,99 € <span>/ mois</span></div><p class="plan-desc">Pour progresser sérieusement avec des analyses plus poussées.</p><ul class="plan-features"><li>Tout le plan Free</li><li>10 analyses IA par mois</li><li>Historique complet</li><li>Statistiques détaillées</li><li>Comparaison de replays</li><li>Accès à un coach IRL via les discussions (10 demandes par mois)</li></ul><button class="btn btn-primary plan-select" data-plan="pro">Choisir Pro</button></article>
+    <article class="plan-card"><div class="plan-badge" style="background:#ff7a18">ILLIMITÉ</div><div class="plan-name">Ultra</div><div class="plan-price" data-month="24.99" data-year="19.99">24,99 € <span>/ mois</span></div><p class="plan-desc">Pour accéder à l’ensemble de Replaylab sans limitation.</p><ul class="plan-features"><li>Tout le plan Pro</li><li>Analyses IA illimitées</li><li>Accès illimité aux coachs IRL</li><li>Forum et discussions sans limite</li><li>Historique et statistiques complets</li><li>Toutes les fonctionnalités futures</li></ul><button class="btn btn-ghost plan-select" data-plan="ultra">Choisir Ultra</button></article>
+  </div>
+  <div class="subscription-panel"><div><div class="eyebrow">TON ABONNEMENT</div><div class="subscription-status" id="subscriptionStatus">Plan actuel : Free</div><p class="muted small" id="subscriptionHint">Le choix est enregistré localement pour la démonstration.</p></div><button class="btn btn-ghost" id="resetSubscription">Réinitialiser</button></div>
+</section>
+
+<!-- FAQ -->
+  <section id="faq" data-page="faq" class="band sec" hidden>
+    <div class="wrap faq" style="max-width:820px">
+      <h2 class="h2" style="margin-bottom:2rem">Questions fréquentes</h2>
+      <details>
+        <summary>Quels fichiers puis-je importer ?</summary>
+        <p>Un fichier .replay de Rocket League ou une vidéo .mp4 de ta partie.</p>
+      </details>
+      <details>
+        <summary>Le Training MMR remplace-t-il mon MMR officiel ?</summary>
+        <p>Non. Il n'a aucun lien avec le classement de Rocket League. Il mesure la qualité de ton jeu dans les parties analysées.</p>
+      </details>
+      <details>
+        <summary>Faut-il gagner pour progresser ?</summary>
+        <p>Non. Une défaite avec une excellente performance fait monter le Training MMR. Une victoire avec un jeu médiocre le fait à peine bouger.</p>
+      </details>
+      <details>
+        <summary>Pourquoi mon Training MMR bouge-t-il peu à chaque partie ?</summary>
+        <p>La variation est volontairement limitée. Le but est de montrer une tendance de progression, pas de réagir à un seul match.</p>
+      </details>
+      <details>
+        <summary>L'analyse est-elle la même pour tous les rangs ?</summary>
+        <p>Non. Un joueur Gold reçoit des explications simples sur les erreurs majeures. Un joueur SSL reçoit une lecture fine du timing, du contrôle de l'espace et des options disponibles.</p>
+      </details>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap flex flex-col md:flex-row md:justify-between gap-4">
+    <div>
+      <span class="logo" style="font-size:1.3rem">Replaylab</span>
+      <p style="margin:.5rem 0 0">Analyse de replays Rocket League par IA.</p>
+    </div>
+    <p style="margin:0; max-width:52ch">Projet indépendant, non affilié à Psyonix ni à Epic Games. Rocket League est une marque de Psyonix.</p>
+  </div>
+</footer>
+
+<script>
+  // Configuration Supabase : renseigne ces valeurs une seule fois pour activer les vrais comptes.
+  window.REPLAYLAB_SUPABASE_URL = 'https://adtzbpijytxlkxocuthq.supabase.co';
+  window.REPLAYLAB_SUPABASE_ANON_KEY = 'sb_publishable_2bSnFcg6ImXAlvsPTh30ZQ_9fmsyOpd';
+  window.REPLAYLAB_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UJvUNDW9nmmvKCC7CW4fPTYoHHglLOTmJMLEG1B7TYzyAYjgah4bIuOhIbv91tUjTWYG3oc0m4AHqbv5TwbmnxB000596S79v';
+</script>
+<script>
+  // Authentification : l'utilisateur crée/se connecte d'abord, puis complète son profil Rocket League.
+  (function () {
+    var gate = document.getElementById('authGate');
+    var form = document.getElementById('authForm');
+    var loginTab = document.getElementById('authLoginTab');
+    var signupTab = document.getElementById('authSignupTab');
+    var nameWrap = document.getElementById('authNameWrap');
+    var nameInput = document.getElementById('authName');
+    var emailInput = document.getElementById('authEmail');
+    var passwordInput = document.getElementById('authPassword');
+    var roleWrap = document.getElementById('authRoleWrap');
+    var submit = document.getElementById('authSubmit');
+    var reset = document.getElementById('authReset');
+    var msg = document.getElementById('authMsg');
+    var signup = false;
+    var authTitle = document.getElementById('authTitle');
+
+    // Renseigne ces deux valeurs avec celles de ton projet Supabase.
+    var SUPABASE_URL = window.REPLAYLAB_SUPABASE_URL || '';
+    var SUPABASE_ANON_KEY = window.REPLAYLAB_SUPABASE_ANON_KEY || '';
+    var client = (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storageKey: 'replaylab-supabase-auth'
+          }
+        }) : null;
+    window.replaylabSupabaseClient = client;
+    // Stripe Checkout needs a real HTTP origin. When this file is double-clicked
+    // (file://), use the local server URL supplied by the launcher below.
+    window.REPLAYLAB_SITE_ORIGIN = (location.protocol === 'http:' || location.protocol === 'https:')
+      ? location.origin
+      : 'http://127.0.0.1:5500';
+
+    function setMsg(text, type) { msg.textContent = text || ''; msg.className = 'auth-msg' + (type ? ' ' + type : ''); }
+    function setMode(isSignup) {
+      signup = isSignup;
+      loginTab.classList.toggle('active', !signup);
+      signupTab.classList.toggle('active', signup);
+      nameWrap.style.display = signup ? 'grid' : 'none';
+      roleWrap.style.display = signup ? 'block' : 'none';
+      submit.textContent = signup ? 'Créer mon compte' : 'Se connecter';
+      authTitle.textContent = signup ? 'Crée ton compte Replaylab' : 'Connecte-toi à Replaylab';
+      reset.style.display = signup ? 'none' : 'block';
+      passwordInput.autocomplete = signup ? 'new-password' : 'current-password';
+      setMsg('');
+    }
+    function closeAuth() { gate.hidden = true; document.documentElement.classList.remove('gate-open'); }
+    function openAuth() { gate.hidden = false; document.documentElement.classList.add('gate-open'); }
+    function selectedRole() {
+      var r = document.querySelector('input[name="authRole"]:checked');
+      return r ? r.value : 'player';
+    }
+    function saveSession(user, profile) {
+      localStorage.setItem('replaylab_session', JSON.stringify({ user: user, profile: profile || null }));
+    }
+    function saveLocalProfile(profile) { localStorage.setItem('replaylab_profile', JSON.stringify(profile)); }
+    function nextStep(profile) {
+      if (profile && profile.mode && profile.rank && profile.mmr) {
+        window.dispatchEvent(new CustomEvent('replaylab:auth-ready'));
+        return;
+      }
+      closeAuth();
+      if (window.replaylabOpenProfileGate) window.replaylabOpenProfileGate();
+      else { document.getElementById('gate').hidden = false; document.documentElement.classList.add('gate-open'); }
+    }
+
+    loginTab.addEventListener('click', function () { setMode(false); });
+    signupTab.addEventListener('click', function () { setMode(true); });
+    document.querySelectorAll('.role-card input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        document.querySelectorAll('.role-card').forEach(function (card) { card.classList.toggle('selected', card.querySelector('input').checked); });
+      });
+    });
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var email = emailInput.value.trim();
+      var password = passwordInput.value;
+      if (!email || !password || (signup && password.length < 8)) {
+        setMsg(signup ? 'Entre un email valide et un mot de passe d’au moins 8 caractères.' : 'Entre ton email et ton mot de passe.', 'error');
+        return;
+      }
+      if (!client) {
+        setMsg('Le système de compte est prêt, mais Supabase doit encore être configuré dans le fichier.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      setMsg(signup ? 'Création de ton compte…' : 'Connexion…');
+      try {
+        var result;
+        if (signup) {
+          result = await client.auth.signUp({ email: email, password: password, options: { data: { display_name: (nameInput.value.trim() || email.split('@')[0]), requested_role: selectedRole() } } });
+        } else {
+          result = await client.auth.signInWithPassword({ email: email, password: password });
+        }
+        if (result.error) throw result.error;
+        if (signup && result.data && result.data.user && !result.data.session) {
+          setMsg('Compte créé. Vérifie ton email pour confirmer ton adresse, puis connecte-toi.', 'ok');
+          return;
+        }
+        var user = result.data.user;
+        var profile = null;
+        if (user) {
+          var q = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (!q.error) profile = q.data;
+        }
+        saveSession(user, profile);
+        if (profile && profile.mode && profile.rank && profile.mmr) saveLocalProfile({ mode: profile.mode, rank: profile.rank, mmr: profile.mmr });
+        setMsg('Connexion réussie.', 'ok');
+        setTimeout(function () { closeAuth(); if (typeof window.setAccountHeader === 'function') window.setAccountHeader(); if (profile && profile.mode && profile.rank && profile.mmr) { window.dispatchEvent(new CustomEvent('replaylab:auth-ready')); } else if (window.replaylabOpenProfileGate) { window.replaylabOpenProfileGate(); } }, 150);
+      } catch (err) {
+        setMsg(err && err.message ? err.message : 'Une erreur est survenue.', 'error');
+      } finally { submit.disabled = false; }
+    });
+
+    reset.addEventListener('click', async function () {
+      if (!client || !emailInput.value.trim()) { setMsg('Entre ton email pour recevoir le lien de réinitialisation.', 'error'); return; }
+      try {
+        var r = await client.auth.resetPasswordForEmail(emailInput.value.trim(), { redirectTo: window.REPLAYLAB_SITE_ORIGIN + window.location.pathname.split('/').pop() });
+        if (r.error) throw r.error;
+        setMsg('Un lien de réinitialisation vient d’être envoyé.', 'ok');
+      } catch (err) { setMsg(err.message || 'Impossible d’envoyer le lien.', 'error'); }
+    });
+
+    // Le compte est optionnel : une session existante est simplement restaurée.
+    // Sans session, on laisse le visiteur entrer directement sur le site.
+    (async function boot() {
+      if (!client) {
+        setMode(false);
+        setMsg('Supabase n’a pas pu être chargé. Lance Replaylab avec le fichier .bat fourni ou avec un serveur local.', 'error');
+        return;
+      }
+      try {
+        var s = await client.auth.getSession();
+        if (s.error) throw s.error;
+        var session = s.data && s.data.session;
+        if (!session) { setMode(false); return; }
+        var q = await client.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+        var profile = q && !q.error ? q.data : null;
+        saveSession(session.user, profile);
+        if (profile && profile.mode && profile.rank && profile.mmr) {
+          saveLocalProfile({ mode: profile.mode, rank: profile.rank, mmr: profile.mmr });
+        }
+        closeAuth();
+        window.dispatchEvent(new CustomEvent('replaylab:auth-ready'));
+      } catch (e) {
+        console.error('Replaylab auth boot error:', e);
+        setMode(false);
+        setMsg('Impossible de restaurer la session : ' + (e.message || 'erreur Supabase') + '. Tu peux te reconnecter.', 'error');
+      }
+    })();
+  })();
+
+</script>
+<script>
+  // Profil (mode / rang / MMR) : passerelle avant d'entrer, relie le rang à la profondeur d'analyse
+  (function () {
+    var RANKS = ['Bronze', 'Argent', 'Or', 'Platine', 'Diamant', 'Champion', 'Grand Champion', 'SSL'];
+    var DEPTH = [0, 0, 0, 1, 2, 3, 4, 5];
+    var gate = document.getElementById('gate');
+    var form = document.getElementById('gateForm');
+    var err = document.getElementById('gateErr');
+    var mmrInput = document.getElementById('gateMmr');
+    var rankSelect = document.getElementById('gateRank');
+    var cancelRow = document.getElementById('gateCancelRow');
+    var cancelBtn = document.getElementById('gateCancel');
+    var segBtns = Array.prototype.slice.call(document.getElementById('gateModeGroup').children);
+    var badges = Array.prototype.slice.call(document.querySelectorAll('.profile-badge'));
+    var hideables = [document.querySelector('.topbar'), document.getElementById('top'), document.querySelector('.foot')].filter(Boolean);
+    var mode = null, editing = false, lastFocus = null;
+
+    function readProfile() {
+      try { return JSON.parse(localStorage.getItem('replaylab_profile') || 'null'); } catch (e) { return null; }
+    }
+    function saveProfile(p) {
+      try { localStorage.setItem('replaylab_profile', JSON.stringify(p)); } catch (e) {}
+    }
+
+    function setMode(m) {
+      mode = m;
+      segBtns.forEach(function (b) { b.setAttribute('aria-checked', b.dataset.mode === m ? 'true' : 'false'); });
+    }
+
+    function openGate(prefill) {
+      editing = !!prefill;
+      lastFocus = document.activeElement;
+      err.style.display = 'none';
+      if (prefill) {
+        setMode(prefill.mode);
+        rankSelect.value = prefill.rank;
+        mmrInput.value = prefill.mmr;
+      } else {
+        form.reset();
+        setMode(null);
+      }
+      cancelRow.hidden = !editing;
+      gate.hidden = false;
+      document.documentElement.classList.add('gate-open');
+      hideables.forEach(function (h) { h.setAttribute('aria-hidden', 'true'); });
+      setTimeout(function () { (mode ? rankSelect : segBtns[0]).focus(); }, 0);
+    }
+
+    function closeGate() {
+      gate.hidden = true;
+      document.documentElement.classList.remove('gate-open');
+      hideables.forEach(function (h) { h.removeAttribute('aria-hidden'); });
+      if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
+
+    function applyProfile(p) {
+      badges.forEach(function (b) {
+        b.hidden = false;
+        b.textContent = p.rank + ' · ' + p.mode + ' · ' + p.mmr + ' MMR';
+      });
+      var i = RANKS.indexOf(p.rank);
+      var levelIndex = i >= 0 ? DEPTH[i] : 2;
+      window.dispatchEvent(new CustomEvent('replaylab:profile', { detail: { levelIndex: levelIndex } }));
+    }
+
+    segBtns.forEach(function (b) { b.addEventListener('click', function () { setMode(b.dataset.mode); }); });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var rank = rankSelect.value;
+      var mmr = parseInt(mmrInput.value, 10);
+      if (!mode || !rank || !mmr || mmr < 0) {
+        err.textContent = 'Choisis un mode, un rang, et indique ton MMR.';
+        err.style.display = 'block';
+        return;
+      }
+      var p = { mode: mode, rank: rank, mmr: mmr };
+      saveProfile(p);
+      try {
+        var session = JSON.parse(localStorage.getItem('replaylab_session') || 'null');
+        if (session) {
+          session.profile = Object.assign({}, session.profile || {}, p);
+          localStorage.setItem('replaylab_session', JSON.stringify(session));
+        }
+      } catch (e) {}
+      // Synchronisation Supabase si le client est configuré.
+      (async function () {
+        try {
+          var u = window.replaylabSupabaseClient;
+          if (u && u.auth) {
+            var sr = await u.auth.getSession();
+            var uid = sr.data && sr.data.session && sr.data.session.user && sr.data.session.user.id;
+            if (uid) await u.from('profiles').update({ mode: p.mode, rank: p.rank, mmr: p.mmr }).eq('id', uid);
+          }
+        } catch (e) {}
+      })();
+      applyProfile(p);
+      closeGate();
+    });
+
+    cancelBtn.addEventListener('click', closeGate);
+
+    gate.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && editing) { closeGate(); return; }
+      if (e.key === 'Tab') {
+        var list = Array.prototype.filter.call(gate.querySelectorAll('button, select, input'), function (x) { return !x.disabled && x.offsetParent !== null; });
+        if (!list.length) return;
+        var first = list[0], last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+
+    badges.forEach(function (b) { b.addEventListener('click', function () { openGate(readProfile()); }); });
+
+    var existing = readProfile();
+    var currentSession = null;
+    try { currentSession = JSON.parse(localStorage.getItem('replaylab_session') || 'null'); } catch (e) {}
+
+    window.replaylabOpenProfileGate = function () { openGate(readProfile()); };
+    window.replaylabProfileReady = function () {
+      var p = readProfile();
+      return !!(p && p.mode && p.rank && p.mmr);
+    };
+
+    // Profil Rocket League également optionnel : il peut être complété plus tard.
+    if (existing && existing.mode && existing.rank && existing.mmr) {
+      applyProfile(existing);
+      closeGate();
+    } else {
+      gate.hidden = true;
+      document.documentElement.classList.remove('gate-open');
+    }
+
+    // Les boutons de compte ouvrent l'authentification uniquement à la demande.
+    ['accountHeaderBtn', 'accountMobileBtn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.hidden = false;
+      btn.textContent = (currentSession && currentSession.user) ? 'Mon compte' : 'Créer un compte';
+      btn.addEventListener('click', function () {
+        var auth = document.getElementById('authGate');
+        if (auth) {
+          auth.hidden = false;
+          document.documentElement.classList.add('gate-open');
+        }
+      });
+    });
+  })();
+
+  // Analyse IA réelle (capacité "sample" de la page publiée)
+  (function () {
+    var form = document.getElementById('aiForm');
+    if (!form) return;
+    var input = document.getElementById('aiInput');
+    var submitBtn = document.getElementById('aiSubmit');
+    var status = document.getElementById('aiStatus');
+    var result = document.getElementById('aiResult');
+    var sample = null;
+
+    function esc(v) {
+      var d = document.createElement('div');
+      d.textContent = v == null ? '' : String(v);
+      return d.innerHTML;
+    }
+
+    function profile() {
+      try { return JSON.parse(localStorage.getItem('replaylab_profile') || 'null'); } catch (e) { return null; }
+    }
+
+    function renderResult(data) {
+      var good = data && data.verdict === 'bonne_decision';
+      var facts = Array.isArray(data && data.facts) ? data.facts.slice(0, 3) : [];
+      var factsHtml = facts.map(function (f) {
+        return '<div class="fact"><span>' + esc(f && f.label) + '</span><strong>' + esc(f && f.value) + '</strong></div>';
+      }).join('');
+      result.innerHTML =
+        '<span class="verdict ' + (good ? 'good' : 'err') + '">' + (good ? 'Bonne décision' : 'Erreur') + '</span>' +
+        '<h3 class="h3" style="margin-top:.9rem; font-size:1.55rem">' + esc(data && data.title) + '</h3>' +
+        '<div class="blk"><b>' + (good ? 'Pourquoi c\'est bien joué' : 'Pourquoi c\'est un problème') + '</b><p style="margin:0">' + esc(data && data.why) + '</p></div>' +
+        '<div class="adv"><b>' + (good ? 'À reproduire' : 'Meilleure décision') + '</b><span>' + esc(data && data.tip) + '</span></div>' +
+        (factsHtml ? '<div class="facts" style="margin-top:1.1rem">' + factsHtml + '</div>' : '');
+      result.hidden = false;
+    }
+
+    (async function init() {
+      if (!window.claude || typeof window.claude.use !== 'function') {
+        status.textContent = "L'analyse IA n'est pas disponible dans cet aperçu.";
+        submitBtn.disabled = true;
+        return;
+      }
+      try { sample = await window.claude.use('sample'); } catch (e) { sample = null; }
+      if (!sample) {
+        status.textContent = "L'analyse IA n'est pas disponible ici pour le moment.";
+        submitBtn.disabled = true;
+      }
+    })();
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (!sample) return;
+      var text = input.value.trim();
+      if (!text) return;
+      var p = profile();
+      var rank = (p && p.rank) || 'Diamant';
+      submitBtn.disabled = true;
+      result.hidden = true;
+      status.textContent = 'Claude réfléchit...';
+
+      var prompt = 'Tu es le moteur d\'analyse de Replaylab, un site d\'entraînement Rocket League. ' +
+        'Un joueur de rang ' + rank + ' décrit un moment de sa partie : "' + text + '". ' +
+        'Analyse ce moment comme le ferait Replaylab, en t\'appuyant sur ce qui est pertinent parmi : positionnement, challenges, contrôles, rotations, gestion du boost, prises de risque, décisions offensives et défensives, réaction à l\'adversaire. ' +
+        'Adapte la profondeur de l\'explication au rang ' + rank + ' : plus simple et centrée sur l\'erreur majeure pour un rang bas, plus fine sur le timing et le contrôle de l\'espace pour un rang élevé. ' +
+        'Réponds uniquement avec un objet JSON, sans texte autour, avec les clés : ' +
+        'verdict ("erreur" ou "bonne_decision"), title (titre court de la situation), why (pourquoi c\'est un problème ou une bonne idée, 2 phrases maximum), tip (la meilleure décision ou ce qu\'il faut reproduire, 1 à 2 phrases), facts (un tableau de 0 à 3 objets {label, value} courts tirés de la description). Écris en français.';
+
+      try {
+        var data = await sample.json(prompt);
+        renderResult(data);
+        status.textContent = '';
+      } catch (err) {
+        var code = err && err.code;
+        if (code === 'not_granted') status.textContent = "L'accès à l'analyse IA a été refusé.";
+        else if (code === 'rate_limited') status.textContent = 'Trop de demandes pour le moment, réessaie dans un instant.';
+        else if (code === 'cancelled') status.textContent = '';
+        else status.textContent = "L'analyse n'a pas abouti, réessaie.";
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  })();
+
+  // Navigation par pages : une seule section visible à la fois, pilotée par le menu
+  (function () {
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var pages = Array.prototype.slice.call(document.querySelectorAll('[data-page]'));
+    var navItems = Array.prototype.slice.call(document.querySelectorAll('[data-nav]'));
+    var ids = pages.map(function (p) { return p.dataset.page; });
+    var menuBtn = document.getElementById('menuBtn');
+    var mobileNav = document.getElementById('mobileNav');
+
+    function show(id, opts) {
+      opts = opts || {};
+      if (ids.indexOf(id) === -1) id = 'accueil';
+      pages.forEach(function (p) { p.hidden = p.dataset.page !== id; });
+      navItems.forEach(function (a) { a.setAttribute('aria-selected', a.dataset.nav === id ? 'true' : 'false'); });
+      if (!opts.silent && window.location.hash.slice(1) !== id) {
+        if (window.history && window.history.replaceState) window.history.replaceState(null, '', '#' + id);
+      }
+      if (opts.scroll !== false) window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      document.dispatchEvent(new CustomEvent('replaylab:page', { detail: { id: id } }));
+    }
+
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-nav]');
+      if (!a) return;
+      e.preventDefault();
+      show(a.dataset.nav);
+      if (mobileNav && mobileNav.classList.contains('open')) {
+        mobileNav.classList.remove('open');
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    window.addEventListener('hashchange', function () { show(window.location.hash.slice(1), { scroll: false, silent: true }); });
+
+    show(window.location.hash ? window.location.hash.slice(1) : 'accueil', { scroll: false, silent: true });
+  })();
+
+  // Feuille de route (étapes)
+  (function () {
+    var stages = [
+      { status: 'now', title: 'Analyser une partie', text: "Importer un replay, analyser objectivement le gameplay, calculer le Training MMR et donner des conseils personnalisés." },
+      { status: 'next', title: 'Plusieurs parties', text: "Lire une séance entière pour suivre comment ton jeu évolue d'une partie à l'autre." },
+      { status: 'next', title: 'Les BO5', text: "Suivre ton adaptation entre les manches d'une même série." },
+      { status: 'next', title: 'Intégration au jeu', text: "Une intégration directe dans Rocket League, une piste possible une fois la base assez solide." }
+    ];
+    var tabs = document.getElementById('roadTabs');
+    var panel = document.getElementById('roadPanel');
+    var statusEl = document.getElementById('roadStatus');
+    var statusText = document.getElementById('roadStatusText');
+
+    stages.forEach(function (s, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.id = 'roadTab' + i;
+      b.setAttribute('aria-controls', 'roadPanel');
+      b.innerHTML = '<span class="tab-dot' + (s.status === 'now' ? ' now' : '') + '"></span>' + s.title;
+      b.addEventListener('click', function () { select(i, false); });
+      b.addEventListener('keydown', function (e) {
+        var n = null;
+        if (e.key === 'ArrowRight') n = (i + 1) % stages.length;
+        if (e.key === 'ArrowLeft') n = (i - 1 + stages.length) % stages.length;
+        if (e.key === 'Home') n = 0;
+        if (e.key === 'End') n = stages.length - 1;
+        if (n !== null) { e.preventDefault(); select(n, true); }
+      });
+      tabs.appendChild(b);
+    });
+
+    function select(i, focus) {
+      var s = stages[i];
+      Array.prototype.forEach.call(tabs.children, function (t, j) {
+        t.setAttribute('aria-selected', j === i ? 'true' : 'false');
+        t.tabIndex = j === i ? 0 : -1;
+      });
+      panel.setAttribute('aria-labelledby', 'roadTab' + i);
+      statusEl.className = 'road-status' + (s.status === 'now' ? ' now' : '');
+      statusText.textContent = s.status === 'now' ? 'En cours' : 'À venir';
+      document.getElementById('roadTitle').textContent = s.title;
+      document.getElementById('roadText').textContent = s.text;
+      if (focus) tabs.children[i].focus();
+    }
+    select(0, false);
+  })();
+
+  // Menu mobile
+  (function () {
+    var btn = document.getElementById('menuBtn');
+    var nav = document.getElementById('mobileNav');
+    btn.addEventListener('click', function () {
+      var open = nav.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    nav.addEventListener('click', function (e) {
+      if (e.target.tagName === 'A') { nav.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+    });
+  })();
+
+  // Import (maquette) : .replay ou .mp4
+  (function () {
+    var input = document.getElementById('replayFile');
+    var st = document.getElementById('importStatus');
+    var vid = document.getElementById('preview');
+    var url = null;
+    vid.addEventListener('error', function () {
+      vid.style.display = 'none';
+      if (st.textContent) st.textContent += ' L\'aperçu n\'est pas disponible dans cette page.';
+    });
+    input.addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (url) { URL.revokeObjectURL(url); url = null; }
+      vid.style.display = 'none';
+      vid.removeAttribute('src');
+      if (!f) { st.textContent = ''; return; }
+      var name = f.name.toLowerCase();
+      var isMp4 = name.slice(-4) === '.mp4' || f.type === 'video/mp4';
+      var isReplay = name.slice(-7) === '.replay';
+      var mo = (f.size / 1048576).toFixed(1).replace('.', ',');
+      if (!isMp4 && !isReplay) {
+        st.textContent = 'Format non pris en charge. Choisis un fichier .replay ou .mp4.';
+        input.value = '';
+        return;
+      }
+      if (isMp4) {
+        st.textContent = 'Vidéo reçue : ' + f.name + ' (' + mo + ' Mo). L\'analyse n\'est pas encore branchée sur cette maquette.';
+        try { url = URL.createObjectURL(f); vid.src = url; vid.style.display = 'block'; } catch (err) { vid.style.display = 'none'; }
+      } else {
+        st.textContent = 'Replay reçu : ' + f.name + ' (' + mo + ' Mo). L\'analyse n\'est pas encore branchée sur cette maquette.';
+      }
+    });
+  })();
+
+  // Training MMR
+  (function () {
+    var matches = [
+      { w: true, p: 71, d: 6 }, { w: false, p: 78, d: 8 }, { w: true, p: 52, d: 1 },
+      { w: false, p: 44, d: -5 }, { w: true, p: 66, d: 4 }, { w: false, p: 61, d: 2 },
+      { w: true, p: 48, d: 0 }, { w: false, p: 82, d: 10 }, { w: true, p: 74, d: 7 },
+      { w: false, p: 39, d: -7 }
+    ];
+    var v = 1240, pts = [{ i: 0, v: v }];
+    matches.forEach(function (m, i) { v += m.d; m.v = v; pts.push({ i: i + 1, v: v, m: m }); });
+
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.getElementById('mmrChart');
+    var W = 640, H = 260, L = 52, R = 18, T = 18, B = 34;
+    var vals = pts.map(function (p) { return p.v; });
+    var min = Math.floor((Math.min.apply(null, vals) - 4) / 5) * 5;
+    var max = Math.ceil((Math.max.apply(null, vals) + 4) / 5) * 5;
+    function x(i) { return L + i * (W - L - R) / 10; }
+    function y(val) { return T + (max - val) * (H - T - B) / (max - min); }
+    function el(name, attrs, text) {
+      var n = document.createElementNS(NS, name);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    var step = (max - min) > 30 ? 10 : 5;
+    for (var g = min; g <= max; g += step) {
+      svg.appendChild(el('line', { class: 'g-line', x1: L, x2: W - R, y1: y(g), y2: y(g) }));
+      svg.appendChild(el('text', { class: 'g-text', x: L - 10, y: y(g) + 4, 'text-anchor': 'end' }, g));
+    }
+    pts.forEach(function (p) {
+      svg.appendChild(el('text', { class: 'g-text', x: x(p.i), y: H - 10, 'text-anchor': 'middle' }, p.i === 0 ? 'Départ' : p.i));
+    });
+    svg.appendChild(el('polyline', { class: 'mmr-line', points: pts.map(function (p) { return x(p.i) + ',' + y(p.v); }).join(' ') }));
+    pts.forEach(function (p) {
+      var cls = p.i === 0 ? 'dot-win' : (p.m.w ? 'dot-win' : 'dot-loss');
+      svg.appendChild(el('circle', { class: cls, cx: x(p.i), cy: y(p.v), r: p.i === 0 ? 4 : 6.5 }));
+    });
+
+    var tb = document.getElementById('mmrRows');
+    matches.forEach(function (m, i) {
+      var tr = document.createElement('tr');
+      if (i === 1 || i === 2) tr.className = 'hl';
+      var sign = m.d > 0 ? '+' + m.d : (m.d < 0 ? '\u2212' + Math.abs(m.d) : '0');
+      var cls = m.d > 0 ? 'pos' : (m.d < 0 ? 'neg' : 'muted');
+      tr.innerHTML =
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + (m.w ? 'Victoire' : 'Défaite') + '</td>' +
+        '<td><div style="display:flex;align-items:center;gap:.75rem"><div class="bar" style="flex:1"><i style="width:' + m.p + '%"></i></div><span style="min-width:2ch">' + m.p + '</span></div></td>' +
+        '<td><span class="' + cls + '">' + sign + '</span> <span class="muted">(' + m.v + ')</span></td>';
+      tb.appendChild(tr);
+    });
+  })();
+
+  // Exemple d'analyse
+  (function () {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var TOTAL = 300; // durée de la partie d'exemple, en secondes
+
+    var levels = [
+      { k: 'Gold', txt: 'Explications courtes, centrées sur les erreurs majeures.' },
+      { k: 'Platine', txt: 'Le pourquoi de l\'erreur, avec un geste à retenir.' },
+      { k: 'Diamant', txt: 'Rôles, couverture et rotations entre coéquipiers.' },
+      { k: 'Champion', txt: 'Ce que ton adversaire a lu de ton jeu.' },
+      { k: 'Grand Champion', txt: 'Timing, initiative et options gardées ouvertes.' },
+      { k: 'SSL', txt: 'Fenêtres de jeu, contrôle de l\'espace et adaptation.' }
+    ];
+
+    var dims = [
+      ['Positionnement', 54], ['Challenges', 47], ['Contrôles', 76], ['Rotations', 51],
+      ['Gestion du boost', 44], ['Prises de risque', 71], ['Décisions off. et déf.', 66], ['Réaction adversaire', 62]
+    ];
+
+    var moments = [
+      {
+        t: 47, time: '0:47', cat: 'Défense', verdict: 'err', title: 'Challenge sans couverture',
+        what: 'En 2v2, ton coéquipier est remonté chercher un gros pad après une relance : tu restes seul devant ton but face à deux adversaires qui poussent.',
+        why: [
+          'Tu as foncé sur la balle alors que tu étais seul en défense. L\'adversaire a gardé le ballon et a tiré dans le but resté ouvert.',
+          'Ce duel n\'était pas nécessaire : ton coéquipier n\'était pas encore revenu. En quittant ta ligne, tu as laissé le but sans aucune couverture.',
+          'Ton coéquipier est parti chercher un pad après la relance et n\'a pas eu le temps de revenir. Seul face à deux adversaires, ce challenge était perdant d\'avance.',
+          'Même en gagnant ce duel, le second adversaire arrivait en soutien pour récupérer le ballon libre : ton engagement ne neutralisait pas vraiment la menace.',
+          'Tu perds le tempo sur un 2 contre 1 : engager ici t\'enlève ton seul atout, la position. Sans ton coéquipier, la seule option qui limite les dégâts est de tenir la ligne.',
+          'Avec le second adversaire déjà en soutien, contester ici n\'achète rien : gagné ou perdu, le ballon libre reste favorable à l\'adversaire. La shadow défense est la seule ligne qui transforme ce 2v1 en simple retard de leur attaque.'
+        ],
+        tip: [
+          'Quand tu es seul, reste devant ton but et laisse l\'adversaire venir à toi.',
+          'Replie-toi vers ton but en passant par un pad, et attends que ton coéquipier revienne avant d\'engager.',
+          'Fais un shadow jusqu\'au retour de ton coéquipier ; ne challenge que si tu es sûr qu\'il peut couvrir derrière.',
+          'Recule en gardant les deux adversaires devant toi, quitte à concéder du terrain, plutôt que de risquer le but vide.',
+          'Priorise la position sur le contact : retarde le duel jusqu\'au retour de ton coéquipier, même si ça veut dire subir un peu de pression.',
+          'Tiens la ligne de tir en shadow, force une passe ou un tir de loin plutôt qu\'une vraie occasion, et laisse le temps à ton coéquipier de revenir compenser le surnombre.'
+        ],
+        facts: [['Coéquipier', 'Parti chercher un pad'], ['Boost à l\'engagement', '18'], ['Adversaires impliqués', '2']],
+        boost: { you: 18, opp: 71 },
+        sc: {
+          you: [[0, 200, 120, 35], [.5, 262, 172, 35], [1, 300, 215, 60]],
+          opp: [[0, 410, 240, 196], [.5, 345, 215, 196], [1, 300, 200, 190]],
+          ball: [[0, 300, 190], [.5, 292, 192], [.65, 292, 192], [1, 22, 200]],
+          ghost: [110, 268, 200],
+          mate: [[0, 480, 90, 15], [1, 462, 84, 8]],
+          opp2: [[0, 478, 300, 200], [1, 428, 258, 194]],
+          rec: 'M215 140 C 196 190, 172 228, 118 262',
+          cone: { pts: '292,190 14,160 14,240', c: 'o' },
+          pads: [[168, 226]],
+          emptyPads: [[510, 70]]
+        }
+      },
+      {
+        t: 92, time: '1:32', cat: 'Boost', verdict: 'err', title: 'Retour en défense à sec',
+        what: 'Juste après avoir concédé, tu reviens en défense presque à sec pendant que les deux adversaires relancent et que ton coéquipier n\'a pas fini de récupérer son propre boost.',
+        why: [
+          'Tu es revenu trop lentement parce que ton boost était presque vide. L\'adversaire est arrivé devant le but avant toi.',
+          'Après avoir concédé, tu n\'as pris aucun pad sur ton chemin de retour. Sans boost, tu perds la course et tu ne peux plus couvrir le poteau.',
+          'Ton coéquipier, encore engagé sur son propre retour depuis le pad pris plus tôt, ne peut pas relayer tout de suite : c\'est à toi de temporiser, pas de foncer à sec.',
+          'Face à deux adversaires qui relancent ensemble, arriver sans boost te retire toute option : ni challenger, ni couper la passe entre eux.',
+          'Ce retour à sec est la conséquence directe du duel précédent : tu payes maintenant le boost dépensé à 0:47. Le chemin le plus court n\'est pas toujours le plus rapide.',
+          'Deux adversaires coordonnés contre un retour sans boost, c\'est un rapport de force perdu avant le premier contact. La seule variable que tu contrôles ici est le détour par les pads, pas la vitesse en ligne droite.'
+        ],
+        tip: [
+          'Après avoir concédé, prends un pad de boost avant de foncer vers ton but.',
+          'Prévois ton retour par les grands pads : tu arrives avec du boost et en position, même si le chemin est plus long.',
+          'Temporise le temps que ton coéquipier récupère son boost, plutôt que de vouloir tout défendre seul et à sec.',
+          'Vise la position entre les deux adversaires plutôt que la balle : sans boost, tu ne gagneras pas la course.',
+          'Accepte de perdre une seconde sur le chemin direct pour arriver avec du boost : la position vaut plus que la vitesse ici.',
+          'Priorise le détour par les pads et la lecture de la passe entre les deux adversaires plutôt qu\'un retour en ligne droite sans ressource.'
+        ],
+        facts: [['Boost au retour', '8'], ['Grands pads pris', '0 sur 2'], ['Coéquipier', 'Pas encore récupéré']],
+        boost: { you: 8, opp: 54 },
+        sc: {
+          you: [[0, 430, 140, 175], [1, 300, 180, 190]],
+          opp: [[0, 350, 270, 195], [1, 140, 225, 190]],
+          ball: [[0, 330, 255], [1, 112, 215]],
+          ghost: [108, 190, 190],
+          mate: [[0, 500, 60, 150], [1, 418, 82, 160]],
+          opp2: [[0, 300, 80, 200], [1, 202, 140, 194]],
+          rec: 'M430 140 L326 46 L136 72 L108 190',
+          cone: { pts: '140,225 14,165 14,235', c: 'o' },
+          pads: [[320, 40], [130, 70]],
+          emptyPads: []
+        }
+      },
+      {
+        t: 135, time: '2:15', cat: 'Attaque', verdict: 'good', title: 'Tu temporises au lieu de forcer',
+        what: 'Le rapport de force s\'est inversé : ton coéquipier a récupéré son boost, l\'adversaire qui poussait est maintenant à court, et son partenaire défend seul. Tu gardes la balle au lieu de forcer un tir bloqué.',
+        why: [
+          'Bonne idée : tu n\'as pas tiré dans le défenseur. En gardant la balle un instant, ton équipe arrive avec toi.',
+          'Ton dribble lent a fixé le défenseur pendant que ton coéquipier montait en soutien. Tu as créé une option de passe au lieu de jouer une balle à 50 %.',
+          'L\'adversaire qui vous avait mis en difficulté est maintenant à court de boost : en temporisant, tu l\'obliges à défendre sans pouvoir repartir vite derrière.',
+          'Le second adversaire défend seul pour l\'instant : retarder ton geste l\'oblige à choisir entre te couvrir toi et couvrir la passe à ton coéquipier.',
+          'En retardant ton touch, tu forces le défenseur à décider en premier et tu ouvres deux lignes : la passe au second homme ou le tir sur l\'angle ouvert, sans qu\'il puisse compter sur un soutien immédiat.',
+          'Garder ce tempo pendant que l\'adversaire est court en boost et isolé, c\'est transformer un simple round offensif en surnombre prolongé : chaque seconde supplémentaire coûte plus cher à leur défense qu\'à ton attaque.'
+        ],
+        tip: [
+          'Continue comme ça : quand le tir est bloqué, garde la balle et attends ton équipe.',
+          'Répète ce schéma, et regarde ton coéquipier avant de choisir entre tir et passe.',
+          'Profite du fait que l\'adversaire est à court de boost pour prolonger l\'action plutôt que de forcer une fin rapide.',
+          'Garde la balle assez longtemps pour que le défenseur isolé soit obligé de choisir un camp à couvrir.',
+          'Garde ce tempo : plus tu retardes ton touch avec une couverture derrière toi, plus l\'adversaire à court de boost est obligé de commettre une erreur.',
+          'Maintiens la pression tant que leur second défenseur reste seul et à court de ressources : c\'est le moment où prolonger l\'action rapporte le plus.'
+        ],
+        facts: [['Boost à l\'action', '54'], ['Adversaire en face', 'À court de boost'], ['Soutien qui arrive', 'Oui']],
+        boost: { you: 54, opp: 22 },
+        sc: {
+          you: [[0, 340, 80, 25], [.6, 450, 135, 25], [1, 500, 150, 20]],
+          opp: [[0, 560, 230, 180], [1, 545, 215, 175]],
+          mate: [[0, 300, 330, -30], [1, 470, 250, -60]],
+          ball: [[0, 358, 92], [.6, 468, 140], [1, 520, 158]],
+          ghost: null,
+          opp2: [[0, 600, 120, 180], [1, 580, 168, 172]],
+          rec: 'M300 330 C 380 320, 440 290, 470 250',
+          cone: { pts: '520,158 626,160 626,240', c: 'b' },
+          pads: [],
+          emptyPads: [[510, 70]]
+        }
+      },
+      {
+        t: 220, time: '3:40', cat: 'Rotation', verdict: 'err', title: 'Rotation coupée après un dégagement',
+        what: 'Après ton dégagement, tu restes engagé vers l\'avant sans vérifier si ton coéquipier peut tenir seul : le même réflexe qu\'à 0:47, face aux deux adversaires qui relancent ensemble.',
+        why: [
+          'Après avoir dégagé, tu es resté en avant. Ton coéquipier s\'est retrouvé seul face aux deux adversaires qui attaquaient.',
+          'Ta rotation s\'est arrêtée trop haut : personne n\'a pris la position de dernier défenseur derrière ton coéquipier, à court de boost après avoir couvert seul plus tôt.',
+          'C\'est le même schéma qu\'à 0:47 : tu restes engagé après une action au lieu de vérifier si ton coéquipier peut tenir le surnombre seul.',
+          'Ton coéquipier, qui a dépensé son boost à défendre seul pendant que tu remontais, ne peut plus couvrir les deux adversaires qui relancent ensemble.',
+          'Ton dégagement n\'était pas suivi d\'un repli : la couverture de second homme a disparu au moment précis où les deux adversaires repartent ensemble, exactement comme sur le premier but concédé.',
+          'C\'est le troisième moment de la partie où ce réflexe coûte cher : rester engagé après une action, sans vérifier le boost de ton coéquipier ni le nombre d\'adversaires qui relancent, transforme systématiquement un dégagement propre en occasion adverse.'
+        ],
+        tip: [
+          'Après un dégagement, retourne vers ton but avant d\'attaquer de nouveau.',
+          'Rejoins un pad derrière ton coéquipier : tu redeviens le second homme et la rotation est rétablie.',
+          'Comme à 0:47, vérifie d\'abord si ton coéquipier peut tenir seul avant de rester engagé devant.',
+          'Cale ton repli sur l\'état de boost de ton coéquipier : s\'il est bas, replie-toi plus vite, quitte à sacrifier une relance offensive.',
+          'Cale ton repli sur ton dégagement : dès que la balle part, vérifie combien d\'adversaires relancent avant de décider si tu restes engagé.',
+          'Reconnais le motif : à chaque fois que tu restes engagé après une action sans vérifier le boost de ton coéquipier et le nombre d\'adversaires, la rotation casse. Corriger ce seul réflexe réglerait plusieurs erreurs à la fois.'
+        ],
+        facts: [['Après le dégagement', 'Trop avancé'], ['Coéquipier', 'À court de boost'], ['Motif', 'Identique à 0:47']],
+        boost: { you: 63, opp: 58 },
+        sc: {
+          you: [[0, 300, 230, 10], [1, 470, 130, 10]],
+          opp: [[0, 330, 320, 195], [1, 215, 222, 190]],
+          mate: [[0, 140, 230, 0], [1, 120, 205, 0]],
+          ball: [[0, 310, 240], [.35, 310, 240], [1, 150, 222]],
+          ghost: [314, 350, 190],
+          opp2: [[0, 380, 120, 200], [1, 258, 150, 192]],
+          rec: 'M300 230 C 290 285, 300 330, 314 348',
+          cone: { pts: '150,222 14,165 14,235', c: 'o' },
+          pads: [[320, 360]],
+          emptyPads: [[510, 330]]
+        }
+      }
+    ];
+
+    var NS = 'http://www.w3.org/2000/svg';
+    var $ = function (id) { return document.getElementById(id); };
+    var tabs = $('tabs'), bar = $('depthBar');
+    var gYou = $('you'), gOpp = $('opp'), gOpp2 = $('opp2'), gMate = $('mate'), gGhost = $('ghost'), gBall = $('ball');
+    var cone = $('cone'), rec = $('recPath'), rings = $('padRings');
+    var tl = $('tl'), tlFill = $('tlFill'), tlHead = $('tlHead');
+    var level = 2, idx = 0, anim = null;
+
+    // Pads de boost de la carte : 4 gros pads (100) et 4 petits (12)
+    var BIG_PADS = [[130, 70], [130, 330], [510, 70], [510, 330]];
+    var SMALL_PADS = [[320, 40], [320, 360], [168, 226], [472, 226]];
+    var padsLayer = $('padsLayer');
+    function padKey(x, y) { return x + ',' + y; }
+    function initPads() {
+      function make(list, big) {
+        list.forEach(function (pd) {
+          var g = document.createElementNS(NS, 'g');
+          g.setAttribute('class', 'padnode' + (big ? ' big' : ' small'));
+          g.setAttribute('data-key', padKey(pd[0], pd[1]));
+          g.setAttribute('transform', 'translate(' + pd[0] + ' ' + pd[1] + ')');
+          var glow = document.createElementNS(NS, 'circle');
+          glow.setAttribute('class', 'pad-glow');
+          glow.setAttribute('r', big ? 15 : 9);
+          var core = document.createElementNS(NS, 'circle');
+          core.setAttribute('class', 'pad-core');
+          core.setAttribute('r', big ? 6 : 3.2);
+          g.appendChild(glow);
+          g.appendChild(core);
+          padsLayer.appendChild(g);
+        });
+      }
+      make(BIG_PADS, true);
+      make(SMALL_PADS, false);
+    }
+    initPads();
+    initTrend();
+
+    function applyPadStates(s) {
+      var empty = {};
+      (s.emptyPads || []).forEach(function (pd) { empty[padKey(pd[0], pd[1])] = true; });
+      Array.prototype.forEach.call(padsLayer.querySelectorAll('.padnode'), function (n) {
+        n.classList.toggle('is-empty', !!empty[n.getAttribute('data-key')]);
+      });
+    }
+
+    function tagFor(v) {
+      if (v < 20) return ['Faible', 'low'];
+      if (v < 60) return ['Correct', 'mid'];
+      return ['Plein', 'high'];
+    }
+    function setGauge(pathId, valId, tagId, v) {
+      var v100 = Math.max(0, Math.min(100, v));
+      $(pathId).setAttribute('stroke-dasharray', v100 + ' ' + (100 - v100));
+      $(valId).textContent = v;
+      var t = tagFor(v);
+      $(tagId).textContent = t[0];
+      $(tagId).className = 'gauge-tag ' + t[1];
+    }
+    function updateGauges(m) {
+      setGauge('gaugeYou', 'gYouVal', 'gYouTag', m.boost.you);
+      setGauge('gaugeOpp', 'gOppVal', 'gOppTag', m.boost.opp);
+    }
+
+    function initTrend() {
+      var svg = $('trendSvg'), W = 260, H = 44, pad = 8;
+      var vals = moments.map(function (m) { return m.boost.you; });
+      function X(i) { return pad + i * ((W - 2 * pad) / (vals.length - 1)); }
+      function Y(v) { return H - 8 - (v / 100) * (H - 16); }
+      var poly = document.createElementNS(NS, 'polyline');
+      poly.setAttribute('class', 'trend-line');
+      poly.setAttribute('points', vals.map(function (v, i) { return X(i) + ',' + Y(v); }).join(' '));
+      svg.appendChild(poly);
+      vals.forEach(function (v, i) {
+        var c = document.createElementNS(NS, 'circle');
+        c.setAttribute('class', 'trend-dot');
+        c.setAttribute('data-i', i);
+        c.setAttribute('cx', X(i));
+        c.setAttribute('cy', Y(v));
+        c.setAttribute('r', 4);
+        svg.appendChild(c);
+      });
+    }
+
+    function updateTrendActive() {
+      Array.prototype.forEach.call($('trendSvg').querySelectorAll('.trend-dot'), function (c) {
+        var active = Number(c.getAttribute('data-i')) === idx;
+        c.classList.toggle('active', active);
+        c.setAttribute('r', active ? 6 : 4);
+      });
+    }
+
+    function pick(arr, lv) { return arr.length === 6 ? arr[lv] : arr[Math.floor(lv / 2)]; }
+    function clamp(v) { return Math.max(0, Math.min(1, v)); }
+
+    function at(kf, p) {
+      if (p <= kf[0][0]) return kf[0].slice(1);
+      for (var i = 1; i < kf.length; i++) {
+        if (p <= kf[i][0]) {
+          var a = kf[i - 1], b = kf[i], u = (p - a[0]) / (b[0] - a[0]), r = [];
+          for (var j = 1; j < a.length; j++) r.push(a[j] + (b[j] - a[j]) * u);
+          return r;
+        }
+      }
+      return kf[kf.length - 1].slice(1);
+    }
+    function place(g, v) { g.setAttribute('transform', 'translate(' + v[0].toFixed(1) + ' ' + v[1].toFixed(1) + ')' + (v.length > 2 ? ' rotate(' + v[2].toFixed(1) + ')' : '')); }
+
+    function draw(p) {
+      var s = moments[idx].sc;
+      place(gYou, at(s.you, p));
+      place(gOpp, at(s.opp, p));
+      if (s.mate) place(gMate, at(s.mate, p));
+      if (s.opp2) place(gOpp2, at(s.opp2, p));
+      place(gBall, at(s.ball, p));
+      cone.style.opacity = clamp((p - .72) / .2);
+      rec.style.strokeDashoffset = 1 - clamp((p - .5) / .4);
+      if (s.ghost) gGhost.style.opacity = clamp((p - .85) / .15);
+      var sec = moments[idx].t + p * 4;
+      var pct = (sec / TOTAL * 100).toFixed(2) + '%';
+      tlHead.style.left = pct;
+      tlFill.style.width = pct;
+    }
+
+    function play() {
+      if (anim) cancelAnimationFrame(anim);
+      if (reduce) { draw(1); return; }
+      var start = performance.now(), dur = 3800;
+      function step(now) {
+        var p = Math.min(1, (now - start) / dur);
+        draw(p);
+        if (p < 1) anim = requestAnimationFrame(step);
+      }
+      anim = requestAnimationFrame(step);
+    }
+
+    function setScene() {
+      var m = moments[idx], s = m.sc;
+      cone.setAttribute('points', s.cone ? s.cone.pts : '');
+      cone.setAttribute('class', 'cone ' + (s.cone && s.cone.c === 'b' ? 'cone-b' : 'cone-o'));
+      rec.setAttribute('d', s.rec || '');
+      rec.style.display = s.rec ? '' : 'none';
+      if (s.ghost) { place(gGhost, s.ghost); gGhost.style.display = ''; } else { gGhost.style.display = 'none'; }
+      gMate.style.display = s.mate ? '' : 'none';
+      gOpp2.style.display = s.opp2 ? '' : 'none';
+      applyPadStates(s);
+      updateGauges(m);
+      updateTrendActive();
+      while (rings.firstChild) rings.removeChild(rings.firstChild);
+      s.pads.forEach(function (pd) {
+        var c = document.createElementNS(NS, 'circle');
+        c.setAttribute('class', 'pad-ring');
+        c.setAttribute('cx', pd[0]); c.setAttribute('cy', pd[1]); c.setAttribute('r', 13);
+        rings.appendChild(c);
+      });
+      $('momentChip').textContent = m.time + ' · ' + m.cat;
+      Array.prototype.forEach.call(tl.querySelectorAll('.tl-mark'), function (b, j) {
+        b.setAttribute('aria-pressed', j === idx ? 'true' : 'false');
+      });
+    }
+
+    function renderInsight() {
+      var m = moments[idx], good = m.verdict === 'good';
+      var v = $('verdict');
+      v.className = 'verdict ' + (good ? 'good' : 'err');
+      v.textContent = good ? 'Bonne décision' : 'Erreur';
+      $('mTitle').textContent = m.title;
+      $('mWhat').textContent = m.what;
+      $('mWhy').previousElementSibling.textContent = good ? 'Pourquoi c\'est bien joué' : 'Pourquoi c\'est un problème';
+      $('mWhy').textContent = pick(m.why, level);
+      $('tipLabel').textContent = good ? 'À reproduire' : 'Meilleure décision';
+      $('mTip').textContent = pick(m.tip, level);
+      var f = $('mFacts');
+      f.innerHTML = '';
+      m.facts.forEach(function (x) {
+        var d = document.createElement('div');
+        d.className = 'fact';
+        var a = document.createElement('span'); a.textContent = x[0];
+        var b = document.createElement('strong'); b.textContent = x[1];
+        d.appendChild(a); d.appendChild(b);
+        f.appendChild(d);
+      });
+    }
+
+    function selectMoment(i, doPlay) {
+      idx = i;
+      setScene();
+      renderInsight();
+      if (doPlay) play(); else draw(1);
+    }
+
+    function selectLevel(i, focus) {
+      level = i;
+      Array.prototype.forEach.call(tabs.children, function (t, j) {
+        t.setAttribute('aria-selected', j === i ? 'true' : 'false');
+        t.tabIndex = j === i ? 0 : -1;
+      });
+      Array.prototype.forEach.call(bar.children, function (s, j) { s.className = j <= i ? 'on' : ''; });
+      $('insight').setAttribute('aria-labelledby', 'tab' + i);
+      $('depthText').textContent = levels[i].txt;
+      renderInsight();
+      if (focus) tabs.children[i].focus();
+    }
+
+    // Onglets de rang
+    levels.forEach(function (lv, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.id = 'tab' + i;
+      b.setAttribute('aria-controls', 'insight');
+      b.textContent = lv.k;
+      b.addEventListener('click', function () { selectLevel(i, false); });
+      b.addEventListener('keydown', function (e) {
+        var n = null;
+        if (e.key === 'ArrowRight') n = (i + 1) % levels.length;
+        if (e.key === 'ArrowLeft') n = (i - 1 + levels.length) % levels.length;
+        if (e.key === 'Home') n = 0;
+        if (e.key === 'End') n = levels.length - 1;
+        if (n !== null) { e.preventDefault(); selectLevel(n, true); }
+      });
+      tabs.appendChild(b);
+      bar.appendChild(document.createElement('i'));
+    });
+
+    // Timeline
+    moments.forEach(function (m, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tl-mark ' + m.verdict;
+      b.style.left = (m.t / TOTAL * 100).toFixed(2) + '%';
+      b.setAttribute('aria-pressed', 'false');
+      b.setAttribute('aria-label', m.time + ', ' + m.cat + ' : ' + m.title);
+      b.innerHTML = '<i></i><span>' + m.time + '</span>';
+      b.addEventListener('click', function () { selectMoment(i, true); });
+      tl.appendChild(b);
+    });
+    $('replayBtn').addEventListener('click', play);
+
+    // Bilan
+    var list = $('dimList');
+    dims.forEach(function (d) {
+      var li = document.createElement('li');
+      li.innerHTML = '<div class="row"><span></span><strong></strong></div><div class="m"><i></i></div>';
+      li.querySelector('span').textContent = d[0];
+      li.querySelector('strong').textContent = d[1];
+      var meter = li.querySelector('.m i');
+      meter.style.width = d[1] + '%';
+      if (d[1] < 50) meter.className = 'low';
+      list.appendChild(li);
+    });
+    $('ringFg').style.strokeDashoffset = (339.3 * (1 - 59 / 100)).toFixed(1);
+
+    var startLevel = 2;
+    try {
+      var savedProfile = JSON.parse(localStorage.getItem('replaylab_profile') || 'null');
+      var RANKS = ['Bronze', 'Argent', 'Or', 'Platine', 'Diamant', 'Champion', 'Grand Champion', 'SSL'];
+      var DEPTH = [0, 0, 0, 1, 2, 3, 4, 5];
+      if (savedProfile && savedProfile.rank) {
+        var ri = RANKS.indexOf(savedProfile.rank);
+        if (ri >= 0) startLevel = DEPTH[ri];
+      }
+    } catch (e) {}
+    selectLevel(startLevel, false);
+    selectMoment(0, false);
+    window.addEventListener('replaylab:profile', function (e) {
+      if (e.detail && typeof e.detail.levelIndex === 'number') selectLevel(e.detail.levelIndex, false);
+    });
+    document.addEventListener('replaylab:page', function (e) {
+      if (e.detail && e.detail.id === 'niveaux') play();
+    });
+
+    // Rejoue le premier moment quand la section devient visible
+    if ('IntersectionObserver' in window && !reduce) {
+      var seen = false;
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          if (e.isIntersecting && !seen) { seen = true; play(); io.disconnect(); }
+        });
+      }, { threshold: 0.35 });
+      io.observe($('stageSvg'));
+    }
+  })();
+</script>
+
+<script>
+/* ============================================================
+   REPLAYLAB — MODE AUTONOME / DEMO
+   Rend les fonctions utilisables sans backend : comptes locaux,
+   profils, forum, import replay/vidéo, sauvegarde d'analyses.
+   Quand Supabase est configuré, l'authentification distante reste prioritaire.
+   ============================================================ */
+(function () {
+  'use strict';
+  var LS = {
+    accounts:'replaylab_accounts', session:'replaylab_session', profile:'replaylab_profile',
+    threads:'replaylab_threads', analyses:'replaylab_analyses', imported:'replaylab_imported_replay'
+  };
+  function get(k, fallback){ try { var v=JSON.parse(localStorage.getItem(k)); return v==null?fallback:v; } catch(e){return fallback;} }
+  function put(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+  function uid(prefix){ return (prefix||'id')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+  function esc(v){ var d=document.createElement('div'); d.textContent=v==null?'':String(v); return d.innerHTML; }
+  function session(){ return get(LS.session,null); }
+  function localAccount(){ var s=session(); return s&&s.user?s:null; }
+  function openAuth(){ var g=document.getElementById('authGate'); if(g){g.hidden=false;document.documentElement.classList.add('gate-open');} }
+  function closeAuth(){ var g=document.getElementById('authGate'); if(g){g.hidden=true;document.documentElement.classList.remove('gate-open');} }
+  window.setAccountHeader = function setAccountHeader(){
+    var s=localAccount();
+    ['accountHeaderBtn','accountMobileBtn'].forEach(function(id){var b=document.getElementById(id);if(!b)return;b.hidden=false;b.textContent=s?'Mon compte':'Créer un compte';});
+    var n=document.getElementById('accountName'), e=document.getElementById('accountEmail'), a=document.getElementById('accountAvatar'), r=document.getElementById('accountRole');
+    if(n)n.textContent=s?(s.profile&&s.profile.display_name||s.user.email.split('@')[0]):'Visiteur';
+    if(e)e.textContent=s?s.user.email:'Aucun compte connecté';
+    if(a)a.textContent=s?((s.profile&&s.profile.display_name)||s.user.email).charAt(0).toUpperCase():'?';
+    if(r){r.textContent=s?(s.profile&&s.profile.role==='coach'?'Coach':'Joueur'):'Visiteur';r.className='badge-role '+(s&&s.profile&&s.profile.role==='coach'?'badge-coach':'');}
+    var p=s&&s.profile||get(LS.profile,null);
+    ['accountMode','accountRank','accountMmr','accountSpecialty'].forEach(function(id){var el=document.getElementById(id);if(el&&p)el.value=p[id.replace('account','').toLowerCase()]||p[id.replace('account','').toLowerCase()]||'';});
+    var cs=document.getElementById('coachStatus'); if(cs) cs.textContent=s&&s.profile&&s.profile.role==='coach' ? (s.profile.coach_validated?'Coach validé':'Demande coach en attente de validation') : 'Compte joueur';
+  }
+  function syncProfileToUI(p){
+    if(!p)return;
+    put(LS.profile,{mode:p.mode,rank:p.rank,mmr:Number(p.mmr)||0});
+    window.dispatchEvent(new CustomEvent('replaylab:profile',{detail:{levelIndex:Math.max(0,Math.min(7,['Bronze','Argent','Or','Platine','Diamant','Champion','Grand Champion','SSL'].indexOf(p.rank)))}}));
+  }
+  function renderThreads(){
+    var box=document.getElementById('threadList'); if(!box)return;
+    var threads=get(LS.threads,[]);
+    if(!threads.length){box.innerHTML='<div class="panel"><p class="muted">Aucune discussion pour le moment. Sois le premier à poser une question.</p></div>';return;}
+    box.innerHTML=threads.slice().reverse().map(function(t){return '<article class="thread" data-thread="'+esc(t.id)+'"><div class="thread-head"><div><div class="thread-title">'+esc(t.title)+'</div><div class="thread-meta">'+esc(t.category)+' · '+esc(t.author)+' · '+new Date(t.created_at).toLocaleDateString('fr-FR')+'</div></div><span class="badge-role '+(t.author_role==='coach'?'badge-coach':'')+'">'+(t.author_role==='coach'?'Coach':'Joueur')+'</span></div></article>';}).join('');
+    box.querySelectorAll('[data-thread]').forEach(function(el){el.addEventListener('click',function(){openThread(el.dataset.thread);});});
+  }
+  function openThread(id){
+    var t=get(LS.threads,[]).find(function(x){return x.id===id}); if(!t)return;
+    var panel=document.getElementById('threadPanel'); if(!panel)return;
+    panel.hidden=false; document.getElementById('threadPanelTitle').textContent=t.title; document.getElementById('threadPanelMeta').textContent=t.category+' · '+t.author;
+    var posts=document.getElementById('postList');
+    posts.innerHTML='<div class="post '+(t.author_role==='coach'?'coach':'')+'"><strong>'+esc(t.author)+'</strong><div class="thread-meta">'+new Date(t.created_at).toLocaleString('fr-FR')+'</div><p style="margin-top:.5rem">'+esc(t.body).replace(/\n/g,'<br>')+'</p></div>'+(t.posts||[]).map(function(p){return '<div class="post '+(p.role==='coach'?'coach':'')+'"><strong>'+esc(p.author)+'</strong> <span class="badge-role '+(p.role==='coach'?'badge-coach':'')+'">'+(p.role==='coach'?'Coach':'Joueur')+'</span><div class="thread-meta">'+new Date(p.created_at).toLocaleString('fr-FR')+'</div><p style="margin-top:.5rem">'+esc(p.body).replace(/\n/g,'<br>')+'</p></div>';}).join('');
+    panel.dataset.thread=id;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function requireAccount(){ if(!localAccount()){openAuth();return false;} return true; }
+  function initForum(){
+    renderThreads();
+    var newBtn=document.getElementById('newThreadBtn'), tg=document.getElementById('threadGate'), tf=document.getElementById('threadForm');
+    if(newBtn)newBtn.addEventListener('click',function(){if(!requireAccount())return;tg.hidden=false;document.documentElement.classList.add('gate-open');});
+    var cancel=document.getElementById('cancelThread'); if(cancel)cancel.addEventListener('click',function(){tg.hidden=true;document.documentElement.classList.remove('gate-open');});
+    if(tf)tf.addEventListener('submit',function(e){e.preventDefault();if(!requireAccount())return;var s=localAccount(),t={id:uid('thread'),title:document.getElementById('threadTitle').value.trim(),category:document.getElementById('threadCategory').value,body:document.getElementById('threadBody').value.trim(),author:(s.profile&&s.profile.display_name)||s.user.email.split('@')[0],author_role:s.profile&&s.profile.role||'player',created_at:new Date().toISOString(),posts:[]};if(!t.title||!t.body)return;var arr=get(LS.threads,[]);arr.push(t);put(LS.threads,arr);tf.reset();tg.hidden=true;document.documentElement.classList.remove('gate-open');renderThreads();});
+    var pf=document.getElementById('postForm'); if(pf)pf.addEventListener('submit',function(e){e.preventDefault();if(!requireAccount())return;var panel=document.getElementById('threadPanel'),id=panel&&panel.dataset.thread;if(!id)return;var body=document.getElementById('postBody').value.trim();if(!body)return;var s=localAccount(),arr=get(LS.threads,[]),t=arr.find(function(x){return x.id===id});if(!t)return;t.posts=t.posts||[];t.posts.push({id:uid('post'),body:body,author:(s.profile&&s.profile.display_name)||s.user.email.split('@')[0],role:s.profile&&s.profile.role||'player',created_at:new Date().toISOString()});put(LS.threads,arr);document.getElementById('postBody').value='';openThread(id);});
+    var close=document.getElementById('closeThread');if(close)close.addEventListener('click',function(){document.getElementById('threadPanel').hidden=true;});
+  }
+  function initReplay(){
+    var input=document.getElementById('replayFile'), btn=document.getElementById('replayBtn'), vid=document.getElementById('replayVideo');
+    if(!input)return;
+    input.addEventListener('change',function(){var f=input.files&&input.files[0];if(!f)return;var info={name:f.name,size:f.size,type:f.type,lastModified:f.lastModified};put(LS.imported,info);var status=document.getElementById('replayStatus');if(status)status.textContent=f.name+' chargé — '+Math.round(f.size/1024)+' Ko';if(vid&&f.type.indexOf('video/')===0){vid.src=URL.createObjectURL(f);vid.hidden=false;vid.load();}});
+    if(btn)btn.addEventListener('click',function(){var f=input.files&&input.files[0];if(!f){input.click();return;}var status=document.getElementById('replayStatus');if(status)status.textContent='Replay sélectionné. L’extraction complète des données .replay nécessite encore un parseur Rocket League côté serveur.';});
+  }
+  function initAccount(){
+    var save=document.getElementById('saveAccount'); if(save)save.addEventListener('click',function(){var s=localAccount();if(!s){openAuth();return;}var p=Object.assign({},s.profile||{}, {mode:document.getElementById('accountMode').value.trim(),rank:document.getElementById('accountRank').value.trim(),mmr:Number(document.getElementById('accountMmr').value)||0,specialty:document.getElementById('accountSpecialty').value.trim()});s.profile=p;put(LS.session,s);syncProfileToUI({mode:p.mode,rank:p.rank,mmr:p.mmr});var m=document.getElementById('accountMsg');if(m){m.textContent='Profil enregistré.';m.className='auth-msg ok';}setAccountHeader();});
+    var out=document.getElementById('logoutBtn');if(out)out.addEventListener('click',function(){localStorage.removeItem(LS.session);setAccountHeader();openAuth();});
+    ['accountHeaderBtn','accountMobileBtn'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',function(){if(localAccount()){location.hash='#profil';}else openAuth();});});
+  }
+  function patchAuthFallback(){
+    var form=document.getElementById('authForm');if(!form)return;
+    var submit=form.querySelector('#authSubmit'), login=document.getElementById('authLoginTab'), signup=document.getElementById('authSignupTab'), reset=document.getElementById('authReset');
+    function mode(){return signup.classList.contains('active');}
+    // Intercepte seulement si Supabase n'est pas configuré.
+    form.addEventListener('submit',function(e){
+      var hasSupabase=!!window.replaylabSupabaseClient;if(hasSupabase)return;
+      e.preventDefault();
+      var email=document.getElementById('authEmail').value.trim().toLowerCase(),pw=document.getElementById('authPassword').value,name=document.getElementById('authName').value.trim(),msg=document.getElementById('authMsg');
+      if(!email||!pw){msg.textContent='Entre ton email et ton mot de passe.';msg.className='auth-msg error';return;}
+      var accounts=get(LS.accounts,[]);
+      if(mode()){
+        if(pw.length<8){msg.textContent='Le mot de passe doit contenir au moins 8 caractères.';msg.className='auth-msg error';return;}
+        if(accounts.some(function(a){return a.email===email;})){msg.textContent='Un compte existe déjà avec cet email.';msg.className='auth-msg error';return;}
+        var role=(document.querySelector('input[name="authRole"]:checked')||{}).value||'player';var account={id:uid('user'),email:email,password:pw,profile:{display_name:name||email.split('@')[0],role:role,coach_validated:false}};accounts.push(account);put(LS.accounts,accounts);put(LS.session,{user:{id:account.id,email:email},profile:account.profile});msg.textContent='Compte créé. Complète maintenant ton profil Rocket League.';msg.className='auth-msg ok';setTimeout(function(){closeAuth();if(window.replaylabOpenProfileGate)window.replaylabOpenProfileGate();setAccountHeader();},350);
+      }else{
+        var a=accounts.find(function(x){return x.email===email&&x.password===pw;});if(!a){msg.textContent='Email ou mot de passe incorrect.';msg.className='auth-msg error';return;}put(LS.session,{user:{id:a.id,email:a.email},profile:a.profile});msg.textContent='Connexion réussie.';msg.className='auth-msg ok';setTimeout(function(){closeAuth();setAccountHeader();},250);
+      }
+    },true);
+    if(reset)reset.addEventListener('click',function(e){if(window.replaylabSupabaseClient)return;e.preventDefault();var msg=document.getElementById('authMsg');msg.textContent='La récupération par email sera activée avec Supabase. En mode local, utilise ton mot de passe enregistré sur cet appareil.';msg.className='auth-msg';});
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    patchAuthFallback(); initForum(); initReplay(); initAccount(); setAccountHeader();
+    var imported=get(LS.imported,null), status=document.getElementById('replayStatus');if(imported&&status)status.textContent=imported.name+' est le dernier fichier sélectionné sur cet appareil.';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  const KEY='replaylab_subscription';
+  const PRICE_IDS={
+    pro:{monthly:'price_1UJvfTDW9nmmvKCC3ZWNoIs0',yearly:'price_1UJvfzDW9nmmvKCCG96arB0l'},
+    ultra:{monthly:'price_1UJvfVDW9nmmvKCCNO6t2oy5',yearly:'price_1UJvg3DW9nmmvKCCNdbHOpej'}
+  };
+  let billing='monthly';
+  const prices=document.querySelectorAll('[data-month][data-year]');
+  const client=window.replaylabSupabaseClient;
+  function renderPrices(){prices.forEach(el=>{const value=el.dataset[billing==='monthly'?'month':'year'];el.innerHTML=(value==='0'?'0':value.replace('.',','))+' € <span>/ mois</span>';});}
+  document.querySelectorAll('[data-billing]').forEach(btn=>btn.addEventListener('click',()=>{billing=btn.dataset.billing;document.querySelectorAll('[data-billing]').forEach(b=>b.classList.toggle('active',b===btn));renderPrices();}));
+
+  function labelFor(plan){return plan==='pro'?'Pro':plan==='ultra'?'Ultra':'Free';}
+  function setStatus(plan,hint){
+    const status=document.getElementById('subscriptionStatus');
+    const h=document.getElementById('subscriptionHint');
+    if(status)status.textContent='Plan actuel : '+labelFor(plan);
+    if(h)h.textContent=hint||'Ton abonnement Stripe est synchronisé avec Replaylab.';
+    document.querySelectorAll('.plan-select').forEach(b=>{
+      b.textContent=b.dataset.plan===plan?'Plan actuel ✓':(b.dataset.plan==='free'?'Continuer gratuitement':'Choisir '+labelFor(b.dataset.plan));
+    });
+    localStorage.setItem(KEY,plan);
+  }
+
+  async function loadSubscription(){
+    if(!client){setStatus('free','Connexion Supabase indisponible.');return;}
+    try{
+      const {data:{user}}=await client.auth.getUser();
+      if(!user){setStatus('free','Connecte-toi pour utiliser un abonnement payant.');return;}
+      const {data,error}=await client.from('subscriptions').select('plan,status,cancel_at_period_end,current_period_end').eq('user_id',user.id).maybeSingle();
+      if(error)throw error;
+      const active=data && ['active','trialing','past_due'].includes(data.status);
+      const plan=active?(data.plan||'free'):'free';
+      setStatus(plan,active?'Abonnement Stripe actif — synchronisé automatiquement.':'Aucun abonnement payant actif.');
+    }catch(e){
+      setStatus('free','Impossible de charger le statut Stripe pour le moment.');
+      console.error('Replaylab subscription:',e);
+    }
+  }
+
+  async function startCheckout(plan){
+    if(plan==='free'){
+      setStatus('free','Plan gratuit sélectionné.');
+      return;
+    }
+    if(!client){alert('Supabase n’est pas configuré sur cette page.');return;}
+    const {data:{user}}=await client.auth.getUser();
+    if(!user){
+      const gate=document.getElementById('authGate');
+      if(gate){gate.hidden=false;document.documentElement.classList.add('gate-open');}
+      const hint=document.getElementById('subscriptionHint');
+      if(hint)hint.textContent='Connecte-toi ou crée ton compte avant de choisir un abonnement.';
+      return;
+    }
+    const priceId=PRICE_IDS[plan][billing];
+    const hint=document.getElementById('subscriptionHint');
+    if(hint)hint.textContent='Création de ta session de paiement Stripe…';
+    document.querySelectorAll('.plan-select').forEach(b=>b.disabled=true);
+    try{
+      const currentUrl = /^https?:\/\//i.test(window.location.href) ? window.location.href : '';
+      const {data,error}=await client.functions.invoke('create-checkout-session',{body:{price_id:priceId,plan,return_url:currentUrl}});
+      if(error){
+        let msg = error.message || 'Erreur Supabase';
+        try{
+          const ctx = error.context;
+          if(ctx && typeof ctx.json === 'function'){
+            const detail = await ctx.json();
+            if(detail && detail.error) msg = detail.error;
+          }
+        }catch(_){ }
+        throw new Error(msg);
+      }
+      if(!data || !data.url)throw new Error(data&&data.error?data.error:'Stripe n’a pas renvoyé d’URL de paiement.');
+      window.location.href=data.url;
+    }catch(e){
+      console.error('Replaylab Stripe Checkout:',e);
+      if(hint)hint.textContent='Erreur Stripe : '+(e.message||'impossible de lancer le paiement.');
+      alert('Impossible de lancer le paiement Stripe.\n\nDétail : '+(e.message||'erreur inconnue'));
+    }finally{
+      document.querySelectorAll('.plan-select').forEach(b=>b.disabled=false);
+    }
+  }
+
+  document.querySelectorAll('.plan-select').forEach(btn=>btn.addEventListener('click',()=>startCheckout(btn.dataset.plan)));
+  document.getElementById('resetSubscription')?.addEventListener('click',loadSubscription);
+  renderPrices();
+  loadSubscription();
+  if(client)client.auth.onAuthStateChange(function(){setTimeout(loadSubscription,0);});
+
+  // Après un retour depuis Stripe, recharge le statut synchronisé par le webhook.
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('checkout')==='success'){
+    setTimeout(loadSubscription,1000);
+    history.replaceState({},'',window.location.pathname+window.location.hash);
+  }else if(params.get('checkout')==='cancelled'){
+    const hint=document.getElementById('subscriptionHint');
+    if(hint)hint.textContent='Paiement annulé. Aucun abonnement n’a été activé.';
+    history.replaceState({},'',window.location.pathname+window.location.hash);
+  }
+})();
+</script>
+
+<script>
+(function(){
+ const f=document.getElementById('rlReplayFile'), b=document.getElementById('rlAnalyzeBtn'), n=document.getElementById('rlFileName'), clear=document.getElementById('rlClearBtn'); let file=null;
+ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+ const list=a=>Array.isArray(a)&&a.length?a.map(x=>'<li>'+esc(typeof x==='string'?x:(x.title||x.explanation||JSON.stringify(x)))+'</li>').join(''):'<li>Aucune donnée.</li>';
+ function prog(p,t,x){document.getElementById('rlProgress').style.display='block';document.getElementById('rlProgressBar').style.width=p+'%';document.getElementById('rlProgressTitle').textContent=t;document.getElementById('rlProgressText').textContent=x||''}
+ function msg(x,ok){const e=document.getElementById('rlAiMsg');e.textContent=x||'';e.style.color=ok?'var(--blue)':'var(--orange)'}
+ f?.addEventListener('change',()=>{file=f.files?.[0]||null;n.textContent=file?file.name:'Aucun fichier sélectionné.';b.disabled=!file;msg('');if(file)prog(0,'Replay prêt','Clique sur « Lancer l’analyse ».')});
+ clear?.addEventListener('click',()=>{file=null;f.value='';n.textContent='Aucun fichier sélectionné.';b.disabled=true;document.getElementById('rlProgress').style.display='none';document.getElementById('rlResult').hidden=true;msg('')});
+ async function extractVideoFrames(videoFile, count=12){
+  const url=URL.createObjectURL(videoFile);
+  const video=document.createElement('video');
+  video.muted=true; video.playsInline=true; video.preload='metadata';
+  video.src=url;
+  await new Promise((resolve,reject)=>{
+    video.onloadedmetadata=resolve;
+    video.onerror=()=>reject(new Error('Impossible de lire cette vidéo.'));
+  });
+  const duration=Number(video.duration);
+  if(!Number.isFinite(duration)||duration<=0) throw new Error('Durée vidéo invalide.');
+  const canvas=document.createElement('canvas');
+  const maxW=640, maxH=360;
+  const scale=Math.min(maxW/video.videoWidth||1,maxH/video.videoHeight||1,1);
+  canvas.width=Math.max(1,Math.round(video.videoWidth*scale));
+  canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+  const ctx=canvas.getContext('2d',{alpha:false});
+  const frames=[];
+  const times=[];
+  const total=Math.min(count,16);
+  for(let i=0;i<total;i++){
+    const t=total===1?0:Math.min(duration-0.05, (duration*i)/(total-1));
+    await new Promise((resolve,reject)=>{
+      let done=false;
+      const finish=(fn)=>{if(done)return;done=true;clearTimeout(timer);video.onseeked=null;fn();};
+      const timer=setTimeout(()=>finish(()=>reject(new Error('Lecture vidéo trop lente.'))),10000);
+      video.onseeked=()=>finish(resolve);
+      try{video.currentTime=Math.max(0,t)}catch(e){finish(()=>reject(e))}
+    });
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    frames.push(canvas.toDataURL('image/jpeg',0.55));
+    times.push(Number(t.toFixed(2)));
+  }
+  URL.revokeObjectURL(url);
+  return {frames,times};
+}
+
+b?.addEventListener('click',async()=>{
+ if(!file)return;
+ const c=window.replaylabSupabaseClient;
+ if(!c){msg('Supabase n’est pas configuré sur cette page.');return}
+ try{
+  b.disabled=true;
+  prog(10,'Vérification','Vérification de ton compte…');
+  const {data:{user}}=await c.auth.getUser();
+  if(!user){msg('Connecte-toi pour analyser un fichier.');return}
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(!['replay','mp4','webm','mov'].includes(ext))throw Error('Format non pris en charge.');
+  const path=user.id+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  prog(25,'Upload','Envoi sécurisé vers Supabase Storage…');
+  const up=await c.storage.from('replays').upload(path,file,{upsert:false,contentType:file.type||'application/octet-stream'});
+  if(up.error)throw up.error;
+
+  let r;
+  if(ext==='replay'){
+    prog(55,'Analyse','Extraction du replay et traitement IA…');
+    r=await c.functions.invoke('analyze-replay',{body:{storage_path:path,replay_filename:file.name,player_mode:localStorage.getItem('replaylab_mode')||'2v2',player_rank:localStorage.getItem('replaylab_rank')||null,player_mmr:Number(localStorage.getItem('replaylab_mmr')||0)||null}});
+  }else{
+    prog(40,'Préparation vidéo','Extraction de 12 images représentatives de la partie…');
+    const sampled=await extractVideoFrames(file,12);
+    prog(65,'Analyse vidéo','Analyse visuelle de la partie par Replaylab AI…');
+    r=await c.functions.invoke('analyze-video',{body:{storage_path:path,replay_filename:file.name,frames:sampled.frames,frame_timestamps:sampled.times,player_mode:localStorage.getItem('replaylab_mode')||'2v2',player_rank:localStorage.getItem('replaylab_rank')||null,player_mmr:Number(localStorage.getItem('replaylab_mmr')||0)||null}});
+  }
+  if(r.error)throw r.error;
+  const result=r.data?.result||r.data;
+  if(!result)throw Error('Aucun résultat retourné.');
+  render(result);
+  prog(100,'Analyse terminée','Résultat enregistré dans Replaylab.');
+  msg(ext==='replay'?'Analyse du replay terminée.':'Analyse vidéo terminée. Replaylab a analysé les images extraites de ta partie.',true);
+ }catch(e){
+  console.error(e);
+  msg(e.message||'Erreur pendant l’analyse.');
+  prog(0,'Analyse interrompue','Vérifie ta vidéo, ta session et la configuration du backend.');
+ }finally{b.disabled=!file}
+});
+ function render(r){document.getElementById('rlResult').hidden=false;document.getElementById('rlScore').textContent=r.score==null?'—':r.score+'/100';const d=r.training_mmr_delta;document.getElementById('rlDelta').textContent=d==null?'—':(d>0?'+':'')+d;document.getElementById('rlStrengthN').textContent=Array.isArray(r.strengths)?r.strengths.length:'—';document.getElementById('rlWeakN').textContent=Array.isArray(r.weaknesses)?r.weaknesses.length:'—';document.getElementById('rlSummary').textContent=r.summary||'—';document.getElementById('rlStrengths').innerHTML=list(r.strengths);document.getElementById('rlWeaknesses').innerHTML=list(r.weaknesses);const m=document.getElementById('rlMoments');m.innerHTML=(Array.isArray(r.key_moments)?r.key_moments:[]).map(x=>'<div style="padding:1rem 0;border-bottom:1px solid var(--line)"><strong>'+esc(x.timestamp||'Moment')+' — '+esc(x.title||x.type||'')+'</strong><p class="muted">'+esc(x.explanation||'')+'</p><p>'+esc(x.recommendation||'')+'</p></div>').join('')||'<p class="muted">Aucun moment clé.</p>';const t=document.getElementById('rlTraining');t.innerHTML=(Array.isArray(r.training_plan)?r.training_plan:[]).map(x=>'<div style="padding:1rem 0;border-bottom:1px solid var(--line)"><strong>'+esc(x.priority||'Priorité')+'</strong><p>'+esc(x.exercise||'')+'</p><p class="muted">'+esc(x.reason||'')+'</p></div>').join('')||'<p class="muted">Aucun plan.</p>'}
+})();
+</script>
+
+<!-- REPLAYLAB SIMPLE SECURITY LAYER
+     Protection légère côté frontend.
+     Les protections critiques restent côté backend Supabase/Stripe.
+-->
+<script>
+(function () {
+  'use strict';
+
+  // 1. Bloque l'exécution du site dans une iframe d'un autre domaine.
+  try {
+    if (window.top !== window.self) {
+      window.top.location = window.self.location.href;
+    }
+  } catch (_) {}
+
+  // 2. Empêche les formulaires de déclencher plusieurs soumissions rapides.
+  document.addEventListener('submit', function (event) {
+    var form = event.target;
+    if (!form || form.dataset.rlLocked === '1') return;
+    form.dataset.rlLocked = '1';
+
+    setTimeout(function () {
+      try { delete form.dataset.rlLocked; } catch (_) {}
+    }, 1500);
+  }, true);
+
+  // 3. Protection simple contre les doubles clics sur les boutons d'action.
+  document.addEventListener('click', function (event) {
+    var button = event.target && event.target.closest
+      ? event.target.closest('button')
+      : null;
+
+    if (!button || button.disabled) return;
+    if (
+      button.classList.contains('plan-select') ||
+      button.id === 'rlAnalyzeBtn'
+    ) {
+      if (button.dataset.rlBusy === '1') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+
+      button.dataset.rlBusy = '1';
+      setTimeout(function () {
+        try { delete button.dataset.rlBusy; } catch (_) {}
+      }, 2000);
+    }
+  }, true);
+
+  // 4. Vérification simple des fichiers Replay avant upload.
+  document.addEventListener('change', function (event) {
+    var input = event.target;
+    if (!input || input.type !== 'file') return;
+
+    var file = input.files && input.files[0];
+    if (!file) return;
+
+    var name = String(file.name || '').toLowerCase();
+
+    var allowed =
+      name.endsWith('.replay') ||
+      name.endsWith('.mp4') ||
+      name.endsWith('.webm') ||
+      name.endsWith('.mov');
+
+    if (!allowed) {
+      input.value = '';
+      alert('Replaylab accepte les fichiers .replay, .mp4, .webm et .mov.');
+      return;
+    }
+
+    if (file.size > maxSize) {
+      input.value = '';
+      alert('Le fichier est trop volumineux. Taille maximale : 50 Mo.');
+    }
+  }, true);
+
+})();
+</script>
+
+</body>
+</html>
